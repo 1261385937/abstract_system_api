@@ -9,21 +9,19 @@
 namespace asa {
 namespace posix {
 
-struct host_handle {
-	std::unique_ptr<FILE> os_fd = nullptr;
-};
-
 struct cpu_occupy {
 	char name[256];
-	unsigned int user;
-	unsigned int nice;
-	unsigned int system;
-	unsigned int idle;
+    uint64_t user;
+    uint64_t nice;
+    uint64_t system;
+    uint64_t idle;
 };
 
 struct memory_info {
 	uint64_t total;
-	uint64_t available;
+	uint64_t free;
+    uint64_t buffers;
+    uint64_t cached;
 };
 
 struct networkcard {

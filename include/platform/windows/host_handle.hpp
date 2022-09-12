@@ -6,11 +6,6 @@
 namespace asa {
 namespace windows {
 
-struct host_handle {
-
-};
-
-
 struct cpu_occupy {
 	uint64_t idle_time;
 	uint64_t kernel_time;
@@ -24,8 +19,8 @@ struct networkcard {
 	std::string desc; //"Software Loopback Interface 1"
 	uint64_t recive_speed;
 	uint64_t transmit_speed; //Mbps
-	std::set<std::string> ipv4;
-	std::set<std::string> ipv6;
+	std::unordered_set<std::string> ipv4;
+	std::unordered_set<std::string> ipv6;
 };
 //key is card name
 using network_card_t = std::unordered_map<std::string, networkcard>;
