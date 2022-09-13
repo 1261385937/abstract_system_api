@@ -16,6 +16,8 @@ namespace asa {
 
 class program {
 public:
+    using self_cpu_occupy = api::self_cpu_occupy;
+public:
 	std::string get_executable_path() {
 		return api::get_executable_path();
 	}
@@ -23,6 +25,20 @@ public:
 	std::string get_executable_parent_path() {
 		return api::get_executable_path<1>();
 	}
+
+    bool cpu_occupy(self_cpu_occupy& occupy) {
+        return api::get_self_cpu_occupy(occupy);
+    }
+
+    double self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now) {
+        return api::calculate_self_cpu_usage(pre, now);
+    }
+
+    double self_memory_usage() {
+        double usage = 0;
+        api::get_self_memory_usage(usage);
+        return usage;
+    }
 };
 
 }
