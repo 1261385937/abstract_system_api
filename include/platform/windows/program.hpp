@@ -42,12 +42,6 @@ struct self_cpu_occupy {
 };
 
 inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
-    auto pid = GetCurrentProcessId();
-    auto handle = GetCurrentProcess();
-    if (handle == 0) {
-        return false;
-    }
-
     auto filetime_to_uint64_t = [](const FILETIME& time) {
         return (uint64_t)time.dwHighDateTime << 32 | time.dwLowDateTime;
     };
@@ -56,7 +50,7 @@ inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
     FILETIME exit_time{};
     FILETIME kernel_time{};
     FILETIME user_time{};
-    auto ok = GetProcessTimes(handle, &creation_time, &exit_time, &kernel_time, &user_time);
+    auto ok = GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time);
     if (!ok) {
         return false;
     }
@@ -72,6 +66,7 @@ inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
     }
     occupy.sys_kernel_time = filetime_to_uint64_t(sys_kernel_time);
     occupy.sys_user_time = filetime_to_uint64_t(sys_user_time);
+    return true;
 }
 
 inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
@@ -92,14 +87,9 @@ inline bool get_self_memory_usage(double& usage) {
     if (!ok) {
         return false;
     }
-    auto total = ex.ullTotalPhys;
 
-    auto handle = GetCurrentProcess();
-    if (handle == 0) {
-        return false;
-    }
     PROCESS_MEMORY_COUNTERS pmc{};
-    ok = GetProcessMemoryInfo(handle, &pmc, sizeof(pmc));
+    ok = GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
     if (!ok) {
         return false;
     }

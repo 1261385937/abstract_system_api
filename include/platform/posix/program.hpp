@@ -27,5 +27,25 @@ inline std::string get_executable_path()
 	}
 }
 
+struct self_cpu_occupy {
+   
+};
+
+inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
+    
+    return true;
+}
+
+inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
+{
+    
+    return {};
+}
+
+inline bool get_self_memory_usage(double& usage) {
+  
+    return true;
+}
+
 }
 }

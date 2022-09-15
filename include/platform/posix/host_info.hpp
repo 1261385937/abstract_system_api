@@ -70,7 +70,9 @@ inline bool get_cpu_occupy(cpu_occupy& occupy) {
     }
     char buff[256] = { 0 };
     while (fgets(buff, sizeof(buff), fd)) {
-        sscanf(buff, "%s %llu %llu %llu %llu", occupy.name, &occupy.user, &occupy.nice, &occupy.system, &occupy.idle);
+        sscanf(buff, "%s %llu %llu %llu %llu",
+            occupy.name, &occupy.user, &occupy.nice, &occupy.system, &occupy.idle);
+
         if (strcmp("cpu", occupy.name)) {
             continue;
         }

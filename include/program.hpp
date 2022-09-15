@@ -26,17 +26,19 @@ public:
 		return api::get_executable_path<1>();
 	}
 
-    bool cpu_occupy(self_cpu_occupy& occupy) {
+    bool get_cpu_occupy(self_cpu_occupy& occupy) {
         return api::get_self_cpu_occupy(occupy);
     }
 
-    double self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now) {
+    double calculate_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now) {
         return api::calculate_self_cpu_usage(pre, now);
     }
 
-    double self_memory_usage() {
+    double memory_usage() {
         double usage = 0;
-        api::get_self_memory_usage(usage);
+        if (!api::get_self_memory_usage(usage)) {
+            return -1.0;
+        }
         return usage;
     }
 };
