@@ -28,7 +28,8 @@ inline std::string get_executable_path()
 }
 
 struct self_cpu_occupy {
-   
+
+
 };
 
 inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
