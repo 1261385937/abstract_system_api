@@ -80,21 +80,21 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cp
     return usage;
 }
 
-inline bool get_self_memory_usage(double& usage) {
+inline double get_self_memory_usage() {
     MEMORYSTATUSEX ex{};
     ex.dwLength = sizeof(ex);
     auto ok = GlobalMemoryStatusEx(&ex);
     if (!ok) {
-        return false;
+        return -1.0;
     }
 
     PROCESS_MEMORY_COUNTERS pmc{};
     ok = GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
     if (!ok) {
-        return false;
+        return -1.0;
     }
-    usage = pmc.WorkingSetSize * 100.0 / ex.ullTotalPhys;
-    return true;
+    auto usage = pmc.WorkingSetSize * 100.0 / ex.ullTotalPhys;
+    return usage;
 }
 
 }

@@ -35,11 +35,7 @@ public:
     }
 
     double memory_usage() {
-        double usage = 0;
-        if (!api::get_self_memory_usage(usage)) {
-            return -1.0;
-        }
-        return usage;
+        return api::get_self_memory_usage();
     }
 };
 

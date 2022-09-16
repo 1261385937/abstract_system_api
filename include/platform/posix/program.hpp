@@ -43,9 +43,42 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cp
     return {};
 }
 
-inline bool get_self_memory_usage(double& usage) {
-  
-    return true;
+inline double get_self_memory_usage() {
+    FILE* fp = fopen("/proc/self/status", "r");
+    if (fp == nullptr) {
+        return -1.0;
+    }
+
+    uint64_t self_vm_rss = 0;
+    char name[256] = { 0 };
+    char buf[256] = { 0 };
+    while (fgets(buf, sizeof(buf), fp)) {   
+        sscanf(buf, "%s %llu", name, &self_vm_rss);
+        if (!strcmp("VmRSS:", name)) {
+            break;
+        }
+        memset(name, 0, sizeof(name));
+        memset(buf, 0, sizeof(buf));
+    }
+    fclose(fp);
+
+    uint64_t mem_total = 0;
+    fp = fopen("/proc/meminfo", "r");
+    if (fp == nullptr) {
+        return -1.0;
+    }
+    while (fgets(buf, sizeof(buf), fp)) {      
+        sscanf(buf, "%s %llu", name, &mem_total);
+        if (!strcmp("MemTotal:", name)) {
+            break;
+        }
+        memset(name, 0, sizeof(name));
+        memset(buf, 0, sizeof(buf));
+    }
+    fclose(fp);
+
+    auto self_mem_usage = (double)self_vm_rss * 100 / (double)mem_total;
+    return self_mem_usage;
 }
 
 }

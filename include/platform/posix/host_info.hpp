@@ -73,14 +73,12 @@ inline bool get_cpu_occupy(cpu_occupy& occupy) {
         sscanf(buff, "%s %llu %llu %llu %llu",
             occupy.name, &occupy.user, &occupy.nice, &occupy.system, &occupy.idle);
 
-        if (strcmp("cpu", occupy.name)) {
-            continue;
+        if (!strcmp("cpu", occupy.name)) {
+            break;
         }
-        fclose(fd);
-        return true;
     }
     fclose(fd);
-    return false;
+    return true;
 }
 
 inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
@@ -104,22 +102,30 @@ inline int32_t get_memory_usage() {
     char name[256] = { 0 };
     char buf[256] = { 0 };
     char unit[32] = { 0 };
+    uint16_t ok = 0;
     while (fgets(buf, sizeof(buf), fp)) {
         uint64_t data;
         sscanf(buf, "%s %llu %s", name, &data, unit);
         if (!strcmp("MemTotal:", name)) {
             meminfo.total = data;
+            ok = ok | (uint16_t)0x0001;
         }
         else if (!strcmp("MemFree:", name)) {
             meminfo.free = data;
+            ok = ok | (uint16_t)0x0010;
         }
         else if (!strcmp("Buffers:", name)) {
             meminfo.buffers = data;
+            ok = ok | (uint16_t)0x0100;
         }
         else if (!strcmp("Cached:", name)) {
             meminfo.cached = data;
+            ok = ok | (uint16_t)0x1000;
         }
 
+        if (ok == (uint16_t)0x1111) {
+            break; //find all key
+        }
         memset(name, 0, sizeof(name));
         memset(buf, 0, sizeof(buf));
         memset(unit, 0, sizeof(unit));
