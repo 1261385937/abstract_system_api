@@ -76,6 +76,7 @@ inline bool get_cpu_occupy(cpu_occupy& occupy) {
         if (!strcmp("cpu", occupy.name)) {
             break;
         }
+        memset(buff, 0, sizeof(buff));
     }
     fclose(fd);
     return true;
@@ -83,13 +84,13 @@ inline bool get_cpu_occupy(cpu_occupy& occupy) {
 
 inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
 {
-    uint64_t od = pre.user + pre.nice + pre.system + pre.idle;
-    uint64_t nd = now.user + now.nice + now.system + now.idle;
-    auto id = now.user - pre.user;
-    auto sd = now.system - pre.system;
-
+    uint64_t pre_total = pre.user + pre.nice + pre.system + pre.idle;
+    uint64_t now_total = now.user + now.nice + now.system + now.idle;
+    auto total_detal = now_total - pre_total;
+    auto used_detal = now.user + pre.system - pre.user - pre.system;
+   
     // +1 for avoiding usage = 0
-    int usage = (int32_t)ceil((double)(sd + id + 1) * 100 / (double)(nd - od));
+    int usage = (int32_t)ceil((double)(used_detal + 1) * 100 / (double)(total_detal));
     return usage;
 }
 

@@ -28,19 +28,57 @@ inline std::string get_executable_path()
 }
 
 struct self_cpu_occupy {
-
-
+    uint64_t user_time;
+    uint64_t sys_time;
+    uint64_t total_time;
 };
 
 inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
-    
+    FILE* fp = fopen("/proc/self/stat", "r"); //14 15
+    if (fp == nullptr) {
+        return false;
+    }
+
+    char buf[512] = { 0 };
+    fgets(buf, sizeof(buf), fp);
+    sscanf(buf, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %llu %llu",
+        &occupy.user_time, &occupy.sys_time);
+    fclose(fp);
+
+    fp = fopen("/proc/stat", "r");
+    if (fp == nullptr) {
+        return false;
+    }
+    uint64_t user = 0;
+    uint64_t nice = 0;
+    uint64_t system = 0;
+    uint64_t idle = 0;
+    char name[32]{};
+    while (fgets(buf, sizeof(buf), fp)) {
+        sscanf(buf, "%s %llu %llu %llu %llu",
+            name, &user, &nice, &system, &idle);
+
+        if (!strcmp("cpu", name)) {
+            break;
+        }
+        memset(buf, 0, sizeof(buf));
+        memset(name, 0, sizeof(name));
+    }
+    fclose(fp);
+
+    occupy.total_time = user + nice + system + idle;
     return true;
 }
 
 inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
 {
-    
-    return {};
+    auto pre_used = pre.user_time + pre.sys_time;
+    auto now_used = now.user_time + now.sys_time;
+    auto used_detal = now_used - pre_used;
+    auto total_detal = now.total_time - pre.total_time;
+
+    auto self_cpu_usage = (double)used_detal * 100 / (double)total_detal;
+    return self_cpu_usage;
 }
 
 inline double get_self_memory_usage() {
