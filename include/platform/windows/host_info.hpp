@@ -137,7 +137,7 @@ inline network_card_t get_network_card()
         card.real_name = currnet->AdapterName;
         card.friend_name = cvt.to_bytes(currnet->FriendlyName);
         card.desc = cvt.to_bytes(currnet->Description);
-        card.recive_speed = currnet->ReceiveLinkSpeed / 1000 / 1000;
+        card.receive_speed = currnet->ReceiveLinkSpeed / 1000 / 1000;
         card.transmit_speed = currnet->TransmitLinkSpeed / 1000 / 1000;
 
         auto pUnicast = currnet->FirstUnicastAddress;

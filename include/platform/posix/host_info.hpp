@@ -196,9 +196,10 @@ inline network_card_t get_network_card() {
             card.real_name = name;
             card.friend_name = name;
             card.desc = name;
-            card.recive_speed = get_network_card_speed(name);
-            card.transmit_speed = card.recive_speed;
+            card.receive_speed = get_network_card_speed(name);
+            card.transmit_speed = card.receive_speed;
             cards.emplace(name, std::move(card));
+            it = cards.find(name);
         }
 
         if (ifa->ifa_addr->sa_family == AF_INET) {
