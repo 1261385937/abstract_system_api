@@ -1,6 +1,8 @@
 #pragma once
 #include <memory>
 #include <chrono>
+#include <atomic>
+
 #if _WIN32
 #include "platform/windows/process_handle.hpp"
 #include "platform/windows/process_action.hpp"
@@ -10,6 +12,8 @@ namespace api = windows;
 }
 
 #else
+#include "platform/posix/process_handle.hpp"
+#include "platform/posix/process_action.hpp"
 
 namespace asa {
 namespace api = posix;
