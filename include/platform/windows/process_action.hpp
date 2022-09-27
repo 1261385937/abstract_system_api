@@ -20,7 +20,7 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
 	constexpr auto tup_size = std::tuple_size_v<decltype(tup)>;
 
 	std::string cmd_lines;
-	for_each_tuple([&cmd_lines, &tup](auto index) {
+	for_each_tuple([&cmd_lines, &tup, &tup_size](auto index) {
 		if constexpr (index == tup_size - 1) {
 			cmd_lines.append(std::get<index>(tup));
 		}
