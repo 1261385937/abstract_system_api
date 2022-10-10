@@ -29,20 +29,21 @@ inline std::string get_os_info_internal( const std::string& from, const std::str
 
     char buf[256] = { 0 };
     while (fgets(buf, sizeof(buf), fd)) {
-        std::string info = buf;
-        auto pos = info.find(keyword);
-        if (pos == std::string::npos) {
-            continue;
-        }
-
         if (keyword == "PRETTY_NAME") { //PRETTY_NAME="CentOS Linux 7 (Core)"
+            std::string info = buf;
+            auto pos = info.find(keyword);
+            if (pos == std::string::npos) {
+                continue;
+            }
+
             pos = info.find_last_of('"');
             os_info = info.substr(13, pos - 13);
+            break;
         }
         else { //CentOS release 6.10 (Final)
-            os_info = std::move(info);
+            os_info = buf;
+            break;
         }
-        break;
     }
     fclose(fd);
     return os_info;
