@@ -73,8 +73,13 @@ public:
             }
             auto& now = it->second;
             auto& pre = pair;
+#if _WIN32
+            auto recive = (static_cast<DWORD>(now.first) - static_cast<DWORD>(pre.first)) / interval_s; //recive
+            auto transmit = (static_cast<DWORD>(now.second) - static_cast<DWORD>(pre.second)) / interval_s; //transmit
+#else
             auto recive = (now.first - pre.first) / interval_s; //recive
             auto transmit = (now.second - pre.second) / interval_s; //transmit
+#endif        
             flow.emplace(name, std::pair{ recive, transmit });
         }
         return flow;
