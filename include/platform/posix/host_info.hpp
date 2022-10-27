@@ -13,6 +13,7 @@
 #include <net/if.h>
 #include <ifaddrs.h>  
 #include <arpa/inet.h>
+#include <sys/statfs.h> 
 
 #include "host_handle.hpp"
 
@@ -256,6 +257,23 @@ inline card_flow get_network_card_flow(C&& c)
     fclose(fp);
     return flow;
 }
+
+disk_info get_disk_info(std::string_view name, std::error_code& ec) {
+    struct statfs disk_Info {};
+    auto ret = statfs(name.data(), &disk_Info);
+    if (ret != 0) {
+        ec = std::error_code(errno, std::system_category());
+        return {};
+    }
+   
+    ec.clear();
+    disk_info info{};
+    uint64_t block_size = disk_Info.f_bsize;
+    info.total_size = block_size * disk_Info.f_blocks; //byte
+    info.available_size = disk_Info.f_bavail * block_size;//byte
+    return info;
+}
+
 
 
 }

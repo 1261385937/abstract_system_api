@@ -29,6 +29,10 @@ using network_card_t = std::unordered_map<std::string, networkcard>;
 using card_flow = std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>;
 using card_name = std::unordered_set<std::string>;
 
+struct disk_info {
+    uint64_t total_size;
+    uint64_t available_size;
+};
 
 }
 }

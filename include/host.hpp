@@ -19,6 +19,7 @@ public:
     using card_flow = api::card_flow;
     using card_name = api::card_name;
     using cpu_occupy = api::cpu_occupy;
+    using disk_info = api::disk_info;
 
 public:
     std::string os_info() {
@@ -102,6 +103,9 @@ public:
         return api::get_network_card_flow(cards);
     }
 
+    auto get_disk_info(std::string_view name, std::error_code& ec) {
+        return api::get_disk_info(name, ec);
+    }
 };
 
 }

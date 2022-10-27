@@ -197,5 +197,20 @@ inline card_flow get_network_card_flow(C&& c)
     return flow;
 }
 
+disk_info get_disk_info(std::string_view name, std::error_code& ec) {
+    disk_info info{};
+    auto ret = GetDiskFreeSpaceExA(name.data(),
+        (PULARGE_INTEGER)&info.available_size,
+        (PULARGE_INTEGER)&info.total_size,
+        nullptr);
+    if (ret == 0) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
+    }
+
+    ec.clear();
+    return info;
+}
+
 }
 }
