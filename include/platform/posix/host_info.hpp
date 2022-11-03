@@ -6,6 +6,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <filesystem>
+#include <system_error>
 
 #include <unistd.h>
 #include <string.h>
@@ -20,11 +21,14 @@
 namespace asa {
 namespace posix {
 
-inline std::string get_os_info_internal( const std::string& from, const std::string& keyword)
+inline std::string get_os_info_internal(
+    const std::string& from, const std::string& keyword, std::error_code& ec)
 {
+    ec.clear();
     std::string os_info = "unknown system";
     FILE* fd = fopen(from.data(), "r");
     if (fd == nullptr) {
+        ec = std::error_code(errno, std::system_category());
         return os_info;
     }
 
@@ -50,26 +54,35 @@ inline std::string get_os_info_internal( const std::string& from, const std::str
     return os_info;
 };
 
-inline std::string get_os_info() {
+inline std::string get_os_info(std::error_code& ec) {
+    ec.clear();
     if (std::filesystem::exists("/etc/os-release")) {
-        return get_os_info_internal("/etc/os-release", "PRETTY_NAME");
+        return get_os_info_internal("/etc/os-release", "PRETTY_NAME", ec);
     }
     else {  //this maybe centos6
-        return get_os_info_internal("/etc/issue", "CentOS");
+        return get_os_info_internal("/etc/issue", "dummy", ec);
     }
 };
 
-inline std::string get_hostname() {
+inline std::string get_hostname(std::error_code& ec) {
+    ec.clear();
     char hostname[1024]{};
-    gethostname(hostname, 1024);
+    auto ret = gethostname(hostname, 1024);
+    if (ret == -1) {
+        ec = std::error_code(errno, std::system_category());
+        return {};
+    }
     return std::string(hostname);
 }
 
-inline bool get_cpu_occupy(cpu_occupy& occupy) {
+inline cpu_occupy get_cpu_occupy(std::error_code& ec) {
+    ec.clear();
     FILE* fd = fopen("/proc/stat", "r");
     if (fd == nullptr) {
-        return false;
+        ec = std::error_code(errno, std::system_category());
+        return {};
     }
+    cpu_occupy occupy{};
     char buff[256] = { 0 };
     while (fgets(buff, sizeof(buff), fd)) {
         sscanf(buff, "%s %llu %llu %llu %llu",
@@ -81,7 +94,7 @@ inline bool get_cpu_occupy(cpu_occupy& occupy) {
         memset(buff, 0, sizeof(buff));
     }
     fclose(fd);
-    return true;
+    return occupy;
 }
 
 inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
@@ -90,17 +103,22 @@ inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
     uint64_t now_total = now.user + now.nice + now.system + now.idle;
     auto total_detal = now_total - pre_total;
     auto used_detal = now.user + pre.system - pre.user - pre.system;
-   
+    if (total_detal == 0) {
+        return {};
+    }
+
     // +1 for avoiding usage = 0
     int usage = (int32_t)ceil((double)(used_detal + 1) * 100 / (double)(total_detal));
     return usage;
 }
 
-inline int32_t get_memory_usage() {
+inline int32_t get_memory_usage(std::error_code& ec) {
+    ec.clear();
     memory_info meminfo{};
     FILE* fp = fopen("/proc/meminfo", "r");
     if (fp == nullptr) {
-        return -1;
+        ec = std::error_code(errno, std::system_category());
+        return {};
     }
     char name[256] = { 0 };
     char buf[256] = { 0 };
@@ -136,20 +154,25 @@ inline int32_t get_memory_usage() {
     fclose(fp);
 
     auto used = meminfo.total - meminfo.free - meminfo.buffers - meminfo.cached;
+    if (meminfo.total == 0) {
+        return {};
+    }
     int mem_usage = (int)ceil((double)used * 100 / (double)meminfo.total);
     return mem_usage;
 }
 
-inline card_state get_network_card_state(const std::string& card_name) {
+inline card_state get_network_card_state(const std::string& card_name, std::error_code& ec) {
+    ec.clear();
     auto file = "/sys/class/net/" + card_name + "/operstate";
     FILE* fp = fopen(file.data(), "r");
     if (fp == nullptr) {
+        ec = std::error_code(errno, std::system_category());
         return card_state::unknown;
     }
+
     char buf[64] = { 0 };
     fgets(buf, sizeof(buf), fp);
     fclose(fp);
-
     if (strncasecmp(buf, "up", 2) == 0) {
         return card_state::up;
     }
@@ -159,7 +182,8 @@ inline card_state get_network_card_state(const std::string& card_name) {
     return card_state::unknown;
 };
 
-inline uint32_t get_network_card_speed(const std::string& card_name) {
+inline uint32_t get_network_card_speed(const std::string& card_name, std::error_code& ec) {
+    ec.clear();
     if (card_name == "lo") {
         return 1000 * 40;
     }
@@ -167,6 +191,7 @@ inline uint32_t get_network_card_speed(const std::string& card_name) {
     auto file = "/sys/class/net/" + card_name + "/speed";
     FILE* fp = fopen(file.data(), "r");
     if (fp == nullptr) {
+        ec = std::error_code(errno, std::system_category());
         return 0;
     }
     char buf[64] = { 0 };
@@ -175,9 +200,11 @@ inline uint32_t get_network_card_speed(const std::string& card_name) {
     return atoi(buf);
 };
 
-inline network_card_t get_network_card() {
+inline network_card_t get_network_card(std::error_code& ec) {
+    ec.clear();
     ifaddrs* ifList{};
     if (getifaddrs(&ifList) < 0) {
+        ec = std::error_code(errno, std::system_category());
         return {};
     }
 
@@ -194,11 +221,12 @@ inline network_card_t get_network_card() {
         auto it = cards.find(name);
         if (it == cards.end()) {
             networkcard card{};
-            card.is_down = get_network_card_state(name) == card_state::down ? true : false;
+            card.is_down = get_network_card_state(name, ec)
+                == card_state::down ? true : false;
             card.real_name = name;
             card.friend_name = name;
             card.desc = name;
-            card.receive_speed = get_network_card_speed(name);
+            card.receive_speed = get_network_card_speed(name, ec);
             card.transmit_speed = card.receive_speed;
             cards.emplace(name, std::move(card));
             it = cards.find(name);
@@ -221,10 +249,12 @@ inline network_card_t get_network_card() {
 }
 
 template<typename C>
-inline card_flow get_network_card_flow(C&& c)
+inline card_flow get_network_card_flow(C&& c, std::error_code& ec)
 {
+    ec.clear();
     FILE* fp = fopen("/proc/net/dev", "r");
     if (fp == nullptr) {
+        ec = std::error_code(errno, std::system_category());
         return {};
     }
     char buf[1024] = { 0 };
@@ -259,14 +289,14 @@ inline card_flow get_network_card_flow(C&& c)
 }
 
 disk_info get_disk_info(std::string_view name, std::error_code& ec) {
+    ec.clear();
     struct statfs disk_Info {};
     auto ret = statfs(name.data(), &disk_Info);
     if (ret != 0) {
         ec = std::error_code(errno, std::system_category());
         return {};
     }
-   
-    ec.clear();
+
     disk_info info{};
     uint64_t block_size = disk_Info.f_bsize;
     info.total_size = block_size * disk_Info.f_blocks; //byte

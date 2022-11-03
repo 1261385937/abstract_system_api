@@ -5,6 +5,7 @@
 #include <vector>
 #include <set>
 #include <unordered_map>
+#include <system_error>
 
 #pragma warning(disable: 4996)
 #pragma comment(lib, "IPHLPAPI.lib")
@@ -21,24 +22,36 @@
 namespace asa {
 namespace windows {
 
-inline std::string get_hostname() {
+inline std::string get_hostname(std::error_code& ec) {
+    ec.clear();
+
     DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
     char buf[MAX_COMPUTERNAME_LENGTH + 1]{};
-    GetComputerNameA(buf, &size);
+    auto ret = GetComputerNameA(buf, &size);
+    if (ret == 0) { //error
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
+    }
     return std::string(buf);
 }
 
-inline std::string get_os_info()
+inline std::string get_os_info(std::error_code& ec)
 {
+    ec.clear();
     std::string os_info = "unknown system";
     HINSTANCE hinst = LoadLibraryA("ntdll.dll");
     if (hinst == nullptr) {
+        ec = std::error_code(GetLastError(), std::system_category());
         return os_info;
     }
 
     typedef void(__stdcall* NTPROC)(DWORD*, DWORD*, DWORD*);
     NTPROC proc = (NTPROC)GetProcAddress(hinst, "RtlGetNtVersionNumbers");
     FreeLibrary(hinst);
+    if (proc == nullptr) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return os_info;
+    }
 
     DWORD dwMajor, dwMinor, dwBuildNumber;
     proc(&dwMajor, &dwMinor, &dwBuildNumber);
@@ -57,6 +70,7 @@ inline std::string get_os_info()
     OSVERSIONINFOEX os{};
     os.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
     if (!GetVersionEx((OSVERSIONINFO*)&os)) {
+        ec = std::error_code(GetLastError(), std::system_category());
         return os_info;
     }
     if (os.dwMajorVersion != 6) {
@@ -74,8 +88,9 @@ inline std::string get_os_info()
     return os_info;
 }
 
-inline bool get_cpu_occupy(cpu_occupy& occupy)
+inline cpu_occupy get_cpu_occupy(std::error_code& ec)
 {
+    ec.clear();
     auto filetime_to_uint64_t = [](const FILETIME& time) {
         return (uint64_t)time.dwHighDateTime << 32 | time.dwLowDateTime;
     };
@@ -86,12 +101,15 @@ inline bool get_cpu_occupy(cpu_occupy& occupy)
 
     auto ok = GetSystemTimes(&idle_time, &kernel_time, &user_time);
     if (!ok) {
-        return false;
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
     }
+
+    cpu_occupy occupy{};
     occupy.idle_time = filetime_to_uint64_t(idle_time);
     occupy.kernel_time = filetime_to_uint64_t(kernel_time);
     occupy.user_time = filetime_to_uint64_t(user_time);
-    return true;
+    return occupy;
 }
 
 inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
@@ -99,32 +117,40 @@ inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
     auto idel_delta = now.idle_time - pre.idle_time;
     auto kernel_delta = now.kernel_time - pre.kernel_time;
     auto user_detal = now.user_time - pre.user_time;
+    auto total_detal = kernel_delta + user_detal;
+    if (total_detal == 0) {
+        return 0;
+    }
 
-    auto cpu = (kernel_delta + user_detal - idel_delta) * 100.0 / (kernel_delta + user_detal);
+    auto cpu = (kernel_delta + user_detal - idel_delta) * 100.0 / total_detal;
     int32_t usage = static_cast<int32_t>(ceil(cpu));
     return usage;
 }
 
-inline int32_t get_memory_usage()
+inline int32_t get_memory_usage(std::error_code& ec)
 {
+    ec.clear();
     MEMORYSTATUSEX ex{};
     ex.dwLength = sizeof(ex);
     auto ok = GlobalMemoryStatusEx(&ex);
     if (!ok) {
-        return -1;
+        ec = std::error_code(GetLastError(), std::system_category());
+        return 0;
     }
     return ex.dwMemoryLoad;
 }
 
-inline network_card_t get_network_card()
+inline network_card_t get_network_card(std::error_code& ec)
 {
+    ec.clear();
     // Allocate a 16 KB buffer to start with.
     ULONG buf_len = 16 * 1024;
     auto adapter_buf = std::shared_ptr<char>(new char[buf_len], [](char* p) {delete[] p; });
 
     auto buf = (IP_ADAPTER_ADDRESSES*)adapter_buf.get();
     auto ret = GetAdaptersAddresses(AF_UNSPEC, GAA_FLAG_INCLUDE_PREFIX, NULL, buf, &buf_len);
-    if (ret != NO_ERROR) {
+    if (ret != ERROR_SUCCESS) {
+        ec = std::error_code(GetLastError(), std::system_category());
         return {};
     }
 
@@ -162,8 +188,9 @@ inline network_card_t get_network_card()
 }
 
 template<typename C>
-inline card_flow get_network_card_flow(C&& c)
+inline card_flow get_network_card_flow(C&& c, std::error_code& ec)
 {
+    ec.clear();
     if (c.empty()) {
         return {};
     }
@@ -174,6 +201,7 @@ inline card_flow get_network_card_flow(C&& c)
     auto buf = (MIB_IFTABLE*)iftable_buf.get();
     ret = GetIfTable(buf, &buf_len, 0);
     if (NO_ERROR != ret) {
+        ec = std::error_code(GetLastError(), std::system_category());
         return {};
     }
 
@@ -198,6 +226,8 @@ inline card_flow get_network_card_flow(C&& c)
 }
 
 disk_info get_disk_info(std::string_view name, std::error_code& ec) {
+    ec.clear();
+
     disk_info info{};
     auto ret = GetDiskFreeSpaceExA(name.data(),
         (PULARGE_INTEGER)&info.available_size,
@@ -207,8 +237,6 @@ disk_info get_disk_info(std::string_view name, std::error_code& ec) {
         ec = std::error_code(GetLastError(), std::system_category());
         return {};
     }
-
-    ec.clear();
     return info;
 }
 

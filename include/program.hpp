@@ -18,24 +18,24 @@ class program {
 public:
     using self_cpu_occupy = api::self_cpu_occupy;
 public:
-	std::string get_executable_path() {
-		return api::get_executable_path();
-	}
-
-	std::string get_executable_parent_path() {
-		return api::get_executable_path<1>();
-	}
-
-    bool get_cpu_occupy(self_cpu_occupy& occupy) {
-        return api::get_self_cpu_occupy(occupy);
+    auto get_executable_path() {
+        return api::get_executable_path();
     }
 
-    double calculate_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now) {
+    auto get_executable_parent_path() {
+        return api::get_executable_path<1>();
+    }
+
+    auto get_cpu_occupy(std::error_code& ec) {
+        return api::get_self_cpu_occupy(ec);
+    }
+
+    auto calculate_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now) {
         return api::calculate_self_cpu_usage(pre, now);
     }
 
-    double memory_usage() {
-        return api::get_self_memory_usage();
+    auto memory_usage(std::error_code& ec) {
+        return api::get_self_memory_usage(ec);
     }
 };
 

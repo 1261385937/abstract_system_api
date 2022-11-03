@@ -1,4 +1,5 @@
 #pragma once
+#include <system_error>
 #include <string>
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -41,7 +42,8 @@ struct self_cpu_occupy {
     uint64_t sys_user_time;
 };
 
-inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
+inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
+    ec.clear();
     auto filetime_to_uint64_t = [](const FILETIME& time) {
         return (uint64_t)time.dwHighDateTime << 32 | time.dwLowDateTime;
     };
@@ -52,8 +54,11 @@ inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
     FILETIME user_time{};
     auto ok = GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time);
     if (!ok) {
-        return false;
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
     }
+
+    self_cpu_occupy occupy{};
     occupy.kernel_time = filetime_to_uint64_t(kernel_time);
     occupy.user_time = filetime_to_uint64_t(user_time);
 
@@ -62,11 +67,12 @@ inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
     FILETIME sys_user_time{};
     ok = GetSystemTimes(&sys_idle_time, &sys_kernel_time, &sys_user_time);
     if (!ok) {
-        return false;
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
     }
     occupy.sys_kernel_time = filetime_to_uint64_t(sys_kernel_time);
     occupy.sys_user_time = filetime_to_uint64_t(sys_user_time);
-    return true;
+    return occupy;
 }
 
 inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
@@ -75,23 +81,30 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cp
     auto user_detal = now.user_time - pre.user_time;
     auto sys_kernel_delta = now.sys_kernel_time - pre.sys_kernel_time;
     auto sys_user_detal = now.sys_user_time - pre.sys_user_time;
+    auto total_detal = sys_kernel_delta + sys_user_detal;
+    if (total_detal == 0) {
+        return {};
+    }
 
-    auto usage = (kernel_delta + user_detal) * 100.0 / (sys_kernel_delta + sys_user_detal);
+    auto usage = (kernel_delta + user_detal) * 100.0 / total_detal;
     return usage;
 }
 
-inline double get_self_memory_usage() {
+inline double get_self_memory_usage(std::error_code& ec) {
+    ec.clear();
     MEMORYSTATUSEX ex{};
     ex.dwLength = sizeof(ex);
     auto ok = GlobalMemoryStatusEx(&ex);
     if (!ok) {
-        return -1.0;
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
     }
 
     PROCESS_MEMORY_COUNTERS pmc{};
     ok = GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
     if (!ok) {
-        return -1.0;
+        ec = std::error_code(GetLastError(), std::system_category());
+        return {};
     }
     auto usage = pmc.WorkingSetSize * 100.0 / ex.ullTotalPhys;
     return usage;

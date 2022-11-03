@@ -22,45 +22,28 @@ public:
     using disk_info = api::disk_info;
 
 public:
-    std::string os_info() {
-        return api::get_os_info();
+    auto os_info(std::error_code& ec) {
+        return api::get_os_info(ec);
     }
 
-    std::string hostname() {
-        return api::get_hostname();
+    auto hostname(std::error_code& ec) {
+        return api::get_hostname(ec);
     }
 
-    //this function sleep 1s inside
-    //return -1 if error
-    int32_t cpu_usage_1s() {
-        cpu_occupy pre{};
-        if (!api::get_cpu_occupy(pre)) {
-            return -1;
-        }
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1000ms);
-        cpu_occupy now{};
-        if (!api::get_cpu_occupy(now)) {
-            return -1;
-        }
-        return api::calculate_cpu_usage(pre, now);
-    }
-
-    auto get_cpu_occupy(cpu_occupy& occupy) {
-        return api::get_cpu_occupy(occupy);
+    auto get_cpu_occupy(std::error_code& ec) {
+        return api::get_cpu_occupy(ec);
     }
 
     auto calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now) {
         return api::calculate_cpu_usage(pre, now);
     }
 
-    //return -1 if error
-    int32_t memory_usage() {
-        return api::get_memory_usage();
+    auto memory_usage(std::error_code& ec) {
+        return api::get_memory_usage(ec);
     }
 
-    network_card_t network_card() {
-        return api::get_network_card();
+    auto network_card(std::error_code& ec) {
+        return api::get_network_card(ec);
     }
 
     auto calculate_network_card_flow(uint32_t interval_s,
@@ -86,21 +69,12 @@ public:
         return flow;
     }
 
-    //this function sleep 1s inside
-    card_flow network_card_flow_1s(const card_name& names) {
-        auto pre = api::get_network_card_flow(names);
-        using namespace std::chrono_literals;
-        std::this_thread::sleep_for(1000ms);
-        auto now = api::get_network_card_flow(names);
-        return calculate_network_card_flow(1, pre, now);
+    auto get_network_card_flow(const card_name& names, std::error_code& ec) {
+        return api::get_network_card_flow(names, ec);
     }
 
-    auto get_network_card_flow(const card_name& names) {
-        return api::get_network_card_flow(names);
-    }
-
-    auto get_network_card_flow(const network_card_t& cards) {
-        return api::get_network_card_flow(cards);
+    auto get_network_card_flow(const network_card_t& cards, std::error_code& ec) {
+        return api::get_network_card_flow(cards, ec);
     }
 
     auto get_disk_info(std::string_view name, std::error_code& ec) {

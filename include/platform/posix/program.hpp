@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <system_error>
 #include <unistd.h>
 
 namespace asa {
@@ -33,12 +34,14 @@ struct self_cpu_occupy {
     uint64_t total_time;
 };
 
-inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
+inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
+    ec.clear();
     FILE* fp = fopen("/proc/self/stat", "r"); //14 15
     if (fp == nullptr) {
-        return false;
+        ec = std::error_code(errno, std::system_category());
+        return {};
     }
-
+    self_cpu_occupy occupy{};
     char buf[512] = { 0 };
     fgets(buf, sizeof(buf), fp);
     sscanf(buf, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %llu %llu",
@@ -47,7 +50,8 @@ inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
 
     fp = fopen("/proc/stat", "r");
     if (fp == nullptr) {
-        return false;
+        ec = std::error_code(errno, std::system_category());
+        return {};
     }
     uint64_t user = 0;
     uint64_t nice = 0;
@@ -67,7 +71,7 @@ inline bool get_self_cpu_occupy(self_cpu_occupy& occupy) {
     fclose(fp);
 
     occupy.total_time = user + nice + system + idle;
-    return true;
+    return occupy;
 }
 
 inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
@@ -76,15 +80,20 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cp
     auto now_used = now.user_time + now.sys_time;
     auto used_detal = now_used - pre_used;
     auto total_detal = now.total_time - pre.total_time;
+    if (total_detal == 0) {
+        return {};
+    }
 
     auto self_cpu_usage = (double)used_detal * 100 / (double)total_detal;
     return self_cpu_usage;
 }
 
-inline double get_self_memory_usage() {
+inline double get_self_memory_usage(std::error_code& ec) {
+    ec.clear();
     FILE* fp = fopen("/proc/self/status", "r");
     if (fp == nullptr) {
-        return -1.0;
+        ec = std::error_code(errno, std::system_category());
+        return {};
     }
 
     uint64_t self_vm_rss = 0;
@@ -103,7 +112,8 @@ inline double get_self_memory_usage() {
     uint64_t mem_total = 0;
     fp = fopen("/proc/meminfo", "r");
     if (fp == nullptr) {
-        return -1.0;
+        ec = std::error_code(errno, std::system_category());
+        return {};
     }
     while (fgets(buf, sizeof(buf), fp)) {      
         sscanf(buf, "%s %llu", name, &mem_total);
@@ -115,6 +125,9 @@ inline double get_self_memory_usage() {
     }
     fclose(fp);
 
+    if (mem_total == 0) {
+        return {};
+    }
     auto self_mem_usage = (double)self_vm_rss * 100 / (double)mem_total;
     return self_mem_usage;
 }
