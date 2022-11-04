@@ -269,14 +269,20 @@ inline card_flow get_network_card_flow(C&& c, std::error_code& ec)
         uint64_t transmit_packets, transmit_errs, transmit_drop,
             transmit_fifo, transmit_colls, transmit_carrier, transmit_compressed;
 
-        sscanf(buf, "%s %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",
+        sscanf(buf, "%[^:]: %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu %llu",
             interface,
             &receive_bytes, &receive_packets, &receive_errs, &receive_drop,
             &receive_fifo, &receive_frame, &receive_compressed, &receive_multicast,
             &transmit_bytes, &transmit_packets, &transmit_errs, &transmit_drop,
             &transmit_fifo, &transmit_colls, &transmit_carrier, &transmit_compressed);
 
-        std::string name{ interface, strlen(interface) - 1 };
+        size_t i = 0;
+        while (interface[i] == ' ') {
+            i++;
+            continue;
+        }
+        std::string name{ interface + i, strlen(interface + i) };
+
         auto it = c.find(name);
         if (it != c.end()) {
             flow.emplace(std::move(name), std::pair{ receive_bytes ,transmit_bytes });
