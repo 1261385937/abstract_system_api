@@ -288,7 +288,7 @@ inline card_flow get_network_card_flow(C&& c, std::error_code& ec)
     return flow;
 }
 
-disk_info get_disk_info(std::string_view name, std::error_code& ec) {
+inline disk_info get_disk_info(std::string_view name, std::error_code& ec) {
     ec.clear();
     struct statfs disk_Info {};
     auto ret = statfs(name.data(), &disk_Info);
