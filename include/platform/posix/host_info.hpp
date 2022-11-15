@@ -107,8 +107,7 @@ inline int32_t calculate_cpu_usage(const cpu_occupy& pre, const cpu_occupy& now)
         return {};
     }
 
-    // +1 for avoiding usage = 0
-    int usage = (int32_t)ceil((double)(used_detal + 1) * 100 / (double)(total_detal));
+    int usage = (int32_t)ceil((double)(used_detal) * 100 / (double)(total_detal));
     return usage;
 }
 
