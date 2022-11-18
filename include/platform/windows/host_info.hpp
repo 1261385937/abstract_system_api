@@ -158,11 +158,20 @@ inline network_card_t get_network_card(std::error_code& ec)
     std::wstring_convert<std::codecvt_utf8<wchar_t>> cvt;
     auto currnet = buf;
     for (; currnet != nullptr; currnet = currnet->Next) {
+        if (currnet->IfType != MIB_IF_TYPE_ETHERNET &&
+            currnet->IfType != MIB_IF_TYPE_LOOPBACK &&
+            currnet->IfType != IF_TYPE_IEEE80211) {
+            continue;
+        }
+
         networkcard card{};
+        card.desc = cvt.to_bytes(currnet->Description);
+        if (card.desc.find("Virtual Adapter") != std::string::npos) {
+            continue;
+        }
         card.is_down = (currnet->OperStatus == IF_OPER_STATUS::IfOperStatusDown);
         card.real_name = currnet->AdapterName;
         card.friend_name = cvt.to_bytes(currnet->FriendlyName);
-        card.desc = cvt.to_bytes(currnet->Description);
         card.receive_speed = currnet->ReceiveLinkSpeed / 1000 / 1000;
         card.transmit_speed = currnet->TransmitLinkSpeed / 1000 / 1000;
 
