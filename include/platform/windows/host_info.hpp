@@ -62,7 +62,15 @@ inline std::string get_os_info(std::error_code& ec)
         }
     }
     else if (dwMajor == 10 && dwMinor == 0) {
-        os_info = dwBuildNumber == 4026546233 ? "windows server 2016" : "windows 10";
+        if (dwBuildNumber == 4026546233) {
+            os_info = "windows server 2016";
+        }
+        else if (dwBuildNumber == 4026553840) {
+            os_info = "windows 11";
+        }
+        else {
+            os_info =  "windows 10";
+        }
         return os_info;
     }
 
@@ -143,8 +151,8 @@ inline int32_t get_memory_usage(std::error_code& ec)
 inline network_card_t get_network_card(std::error_code& ec)
 {
     ec.clear();
-    // Allocate a 16 KB buffer to start with.
-    ULONG buf_len = 16 * 1024;
+    // Allocate a 128 KB buffer to start with.
+    ULONG buf_len = 128 * 1024;
     auto adapter_buf = std::shared_ptr<char>(new char[buf_len], [](char* p) {delete[] p; });
 
     auto buf = (IP_ADAPTER_ADDRESSES*)adapter_buf.get();
