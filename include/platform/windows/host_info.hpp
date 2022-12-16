@@ -151,8 +151,8 @@ inline int32_t get_memory_usage(std::error_code& ec)
 inline network_card_t get_network_card(std::error_code& ec)
 {
     ec.clear();
-    // Allocate a 128 KB buffer to start with.
-    ULONG buf_len = 128 * 1024;
+    // Allocate a 1MB buffer to start with.
+    ULONG buf_len = 1024 * 1024;
     auto adapter_buf = std::shared_ptr<char>(new char[buf_len], [](char* p) {delete[] p; });
 
     auto buf = (IP_ADAPTER_ADDRESSES*)adapter_buf.get();
