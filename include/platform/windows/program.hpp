@@ -110,5 +110,9 @@ inline double get_self_memory_usage(std::error_code& ec) {
     return usage;
 }
 
+inline bool is_in_container() {
+    return false;
+}
+
 }
 }

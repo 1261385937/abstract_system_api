@@ -37,6 +37,10 @@ public:
     auto memory_usage(std::error_code& ec) {
         return api::get_self_memory_usage(ec);
     }
+
+    auto is_in_container() {
+        return api::is_in_container();
+    }
 };
 
 }

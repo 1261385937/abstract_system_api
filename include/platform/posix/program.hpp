@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <system_error>
+#include <regex>
 #include <unistd.h>
 
 namespace asa {
@@ -130,6 +131,24 @@ inline double get_self_memory_usage(std::error_code& ec) {
     }
     auto self_mem_usage = (double)self_vm_rss * 100 / (double)mem_total;
     return self_mem_usage;
+}
+
+inline bool is_in_container() {
+    FILE* fp = fopen("/proc/self/cgroup", "r");
+    if (fp == nullptr) {
+        return false;
+    }
+    auto regex_id = std::regex(R"(^./(?:.-)?([0-9a-f]+)(?:.|\s*$))");
+    bool is = false;
+    char buf[1024] = { 0 };
+    while (fgets(buf, sizeof(buf), fp)) {
+        if (std::regex_match(buf, regex_id)) {
+            return true;
+        }
+        memset(buf, 0, sizeof(buf));
+    }
+    fclose(fp);
+    return false;
 }
 
 }
