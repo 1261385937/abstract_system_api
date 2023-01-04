@@ -139,7 +139,6 @@ inline bool is_in_container() {
         return false;
     }
     auto regex_id = std::regex(R"(^./(?:.-)?([0-9a-f]+)(?:.|\s*$))");
-    bool is = false;
     char buf[1024] = { 0 };
     while (fgets(buf, sizeof(buf), fp)) {
         if (std::regex_match(buf, regex_id)) {
