@@ -6,7 +6,7 @@ namespace posix {
 using pid_t = int;
 
 struct child_handle {
-    pid_t pid{ -1 };
+    pid_t pid{-1};
 
     child_handle() = default;
     ~child_handle() = default;
@@ -15,10 +15,8 @@ struct child_handle {
 
     explicit child_handle(pid_t pid) : pid(pid) {}
 
-    child_handle(child_handle&& c) : pid(c.pid) {
-        c.pid = -1;
-    }
-  
+    child_handle(child_handle&& c) : pid(c.pid) { c.pid = -1; }
+
     child_handle& operator=(child_handle&& c) {
         pid = c.pid;
         c.pid = -1;
@@ -30,9 +28,7 @@ struct child_handle {
     using process_handle_t = int;
     process_handle_t process_handle() const { return pid; }
 
-    bool valid() const {
-        return pid != -1;
-    }
+    bool valid() const { return pid != -1; }
 };
-}
-}
+}  // namespace posix
+}  // namespace asa

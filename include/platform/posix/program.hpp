@@ -1,32 +1,30 @@
 #pragma once
+#include <unistd.h>
+#include <regex>
 #include <string>
 #include <system_error>
-#include <regex>
-#include <unistd.h>
 
 namespace asa {
 namespace posix {
 
-template<size_t UpDepth = 0>
-inline std::string get_executable_path()
-{
-	//the lengh is enough
-	constexpr size_t len = 2048;
-	char full_path[len]{};
-	std::string_view path;
-	readlink("/proc/self/exe", full_path, len);
-	path = full_path;
-	path = path.substr(0, path.find_last_of(R"(/)") + 1);
-	if constexpr (UpDepth == 0) {
-		return std::string{ path.data(),path.length() };
-	}
-	else {
-		for (size_t i = 0; i < UpDepth; i++) {
-			path = path.substr(0, path.length() - 1);
-			path = path.substr(0, path.find_last_of(R"(/)") + 1);
-		}
-		return std::string{ path.data(),path.length() };
-	}
+template <size_t UpDepth = 0>
+inline std::string get_executable_path() {
+    // the lengh is enough
+    constexpr size_t len = 2048;
+    char full_path[len]{};
+    std::string_view path;
+    readlink("/proc/self/exe", full_path, len);
+    path = full_path;
+    path = path.substr(0, path.find_last_of(R"(/)") + 1);
+    if constexpr (UpDepth == 0) {
+        return std::string{path.data(), path.length()};
+    } else {
+        for (size_t i = 0; i < UpDepth; i++) {
+            path = path.substr(0, path.length() - 1);
+            path = path.substr(0, path.find_last_of(R"(/)") + 1);
+        }
+        return std::string{path.data(), path.length()};
+    }
 }
 
 struct self_cpu_occupy {
@@ -37,16 +35,16 @@ struct self_cpu_occupy {
 
 inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
     ec.clear();
-    FILE* fp = fopen("/proc/self/stat", "r"); //14 15
+    FILE* fp = fopen("/proc/self/stat", "r");  // 14 15
     if (fp == nullptr) {
         ec = std::error_code(errno, std::system_category());
         return {};
     }
     self_cpu_occupy occupy{};
-    char buf[512] = { 0 };
+    char buf[512] = {0};
     fgets(buf, sizeof(buf), fp);
     sscanf(buf, "%*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %*s %llu %llu",
-        &occupy.user_time, &occupy.sys_time);
+           &occupy.user_time, &occupy.sys_time);
     fclose(fp);
 
     fp = fopen("/proc/stat", "r");
@@ -60,8 +58,8 @@ inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
     uint64_t idle = 0;
     char name[32]{};
     while (fgets(buf, sizeof(buf), fp)) {
-        sscanf(buf, "%s %llu %llu %llu %llu",
-            name, &user, &nice, &system, &idle);
+        sscanf(buf, "%s %llu %llu %llu %llu", name, &user, &nice, &system,
+               &idle);
 
         if (!strcmp("cpu", name)) {
             break;
@@ -75,8 +73,8 @@ inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
     return occupy;
 }
 
-inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
-{
+inline double calculate_self_cpu_usage(const self_cpu_occupy& pre,
+                                       const self_cpu_occupy& now) {
     auto pre_used = pre.user_time + pre.sys_time;
     auto now_used = now.user_time + now.sys_time;
     auto used_detal = now_used - pre_used;
@@ -98,9 +96,9 @@ inline double get_self_memory_usage(std::error_code& ec) {
     }
 
     uint64_t self_vm_rss = 0;
-    char name[256] = { 0 };
-    char buf[256] = { 0 };
-    while (fgets(buf, sizeof(buf), fp)) {   
+    char name[256] = {0};
+    char buf[256] = {0};
+    while (fgets(buf, sizeof(buf), fp)) {
         sscanf(buf, "%s %llu", name, &self_vm_rss);
         if (!strcmp("VmRSS:", name)) {
             break;
@@ -116,7 +114,7 @@ inline double get_self_memory_usage(std::error_code& ec) {
         ec = std::error_code(errno, std::system_category());
         return {};
     }
-    while (fgets(buf, sizeof(buf), fp)) {      
+    while (fgets(buf, sizeof(buf), fp)) {
         sscanf(buf, "%s %llu", name, &mem_total);
         if (!strcmp("MemTotal:", name)) {
             break;
@@ -139,8 +137,17 @@ inline bool is_in_container() {
         return false;
     }
     auto regex_id = std::regex(R"(^.*/(?:.*-)?([0-9a-f]+)(?:\.|\s*$))");
-    char buf[1024] = { 0 };
-    while (fgets(buf, sizeof(buf), fp)) {
+    char buf[1024] = {0};
+
+    while (fgets(buf, 1024, fp)) {
+        if ((strstr(buf, "docker") != nullptr) ||
+            (strstr(buf, "kubepods") != nullptr) ||
+            (strstr(buf, "lxc") != nullptr) ||
+            (strstr(buf, "rkt") != nullptr) ||
+            (strstr(buf, "sandbox") != nullptr)) {
+            return true;
+        }
+        // maybe useful for unknown container
         if (std::regex_match(buf, regex_id)) {
             return true;
         }
@@ -150,5 +157,5 @@ inline bool is_in_container() {
     return false;
 }
 
-}
-}
+}  // namespace posix
+}  // namespace asa
