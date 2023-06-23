@@ -55,7 +55,7 @@ public:
         api::set_cgroup_cpu_limit(ec, percentage);
     }
 
-    //default
+    //default max 200MB for memory limit
     inline void set_cgroup_memory_limit(std::error_code& ec,
                                         uint64_t limit_bytes = 200 * 1024 * 1024) {
         api::set_cgroup_memory_limit(ec, limit_bytes);
