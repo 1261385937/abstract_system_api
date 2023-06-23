@@ -1,6 +1,6 @@
 #pragma once
-#include <system_error>
 #include <string>
+#include <system_error>
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
@@ -12,28 +12,37 @@
 namespace asa {
 namespace windows {
 
-template<size_t UpDepth = 0>
-inline std::string get_executable_path()
-{
-	//the lengh is enough
-	constexpr size_t len = 2048;
-	char full_path[len]{};
-	std::string_view path;
-	GetModuleFileNameA(nullptr, full_path, len);
-	path = full_path;
-	path = path.substr(0, path.find_last_of(R"(\)") + 1);
-	if constexpr (UpDepth == 0) {
-		return std::string{ path.data(),path.length() };
-	}
-	else {
-		for (size_t i = 0; i < UpDepth; i++) {
-			path = path.substr(0, path.length() - 1);
-			path = path.substr(0, path.find_last_of(R"(\)") + 1);
-		}
-		return std::string{ path.data(),path.length() };
-	}
+template <size_t UpDepth = 0>
+inline std::string get_executable_path() {
+    // the lengh is enough
+    constexpr size_t len = 2048;
+    char full_path[len]{};
+    std::string_view path;
+    GetModuleFileNameA(nullptr, full_path, len);
+    path = full_path;
+    path = path.substr(0, path.find_last_of(R"(\)") + 1);
+    if constexpr (UpDepth == 0) {
+        return std::string{path.data(), path.length()};
+    }
+    else {
+        for (size_t i = 0; i < UpDepth; i++) {
+            path = path.substr(0, path.length() - 1);
+            path = path.substr(0, path.find_last_of(R"(\)") + 1);
+        }
+        return std::string{path.data(), path.length()};
+    }
 }
 
+inline std::string get_executable_name() {
+    // the lengh is enough
+    constexpr size_t len = 2048;
+    char full_path[len]{};
+    std::string_view path;
+    GetModuleFileNameA(nullptr, full_path, len);
+    path = full_path;
+    std::string name{path.substr(path.find_last_of(R"(\)") + 1)};
+    return name;
+}
 
 struct self_cpu_occupy {
     uint64_t kernel_time;
@@ -52,7 +61,8 @@ inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
     FILETIME exit_time{};
     FILETIME kernel_time{};
     FILETIME user_time{};
-    auto ok = GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time);
+    auto ok = GetProcessTimes(GetCurrentProcess(), &creation_time, &exit_time,
+                              &kernel_time, &user_time);
     if (!ok) {
         ec = std::error_code(GetLastError(), std::system_category());
         return {};
@@ -75,8 +85,8 @@ inline self_cpu_occupy get_self_cpu_occupy(std::error_code& ec) {
     return occupy;
 }
 
-inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cpu_occupy& now)
-{
+inline double calculate_self_cpu_usage(const self_cpu_occupy& pre,
+                                       const self_cpu_occupy& now) {
     auto kernel_delta = now.kernel_time - pre.kernel_time;
     auto user_detal = now.user_time - pre.user_time;
     auto sys_kernel_delta = now.sys_kernel_time - pre.sys_kernel_time;
@@ -110,9 +120,21 @@ inline double get_self_memory_usage(std::error_code& ec) {
     return usage;
 }
 
-inline bool is_in_container() {
-    return false;
+inline bool is_in_container() { 
+    return false; 
 }
 
+int get_self_pid() {
+    return getpid();
 }
+
+inline void set_cgroup_cpu_limit(std::error_code& ec, int) {
+    ec.clear();
 }
+
+inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t) {
+    ec.clear();
+}
+
+}  // namespace windows
+}  // namespace asa

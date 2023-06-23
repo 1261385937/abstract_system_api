@@ -26,6 +26,10 @@ public:
         return api::get_executable_path<1>();
     }
 
+    auto get_executable_name() { 
+        return api::get_executable_name(); 
+    }
+
     auto get_cpu_occupy(std::error_code& ec) {
         return api::get_self_cpu_occupy(ec);
     }
@@ -40,6 +44,21 @@ public:
 
     auto is_in_container() {
         return api::is_in_container();
+    }
+
+    int get_pid() {
+        return api::get_self_pid();
+    }
+
+    //default max 10% usage for whole cores
+    void set_cgroup_cpu_limit(std::error_code& ec, int percentage = 10) {
+        api::set_cgroup_cpu_limit(ec, percentage);
+    }
+
+    //default
+    inline void set_cgroup_memory_limit(std::error_code& ec,
+                                        uint64_t limit_bytes = 200 * 1024 * 1024) {
+        api::set_cgroup_memory_limit(ec, limit_bytes);
     }
 };
 

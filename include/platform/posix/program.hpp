@@ -1,9 +1,10 @@
 #pragma once
+#include <unistd.h>
+#include <sys/sysinfo.h>
 #include <string>
 #include <system_error>
 #include <regex>
 #include <unistd.h>
-#include "util/logging.h"
 
 namespace asa {
 namespace posix {
@@ -28,6 +29,17 @@ inline std::string get_executable_path()
 		}
 		return std::string{ path.data(),path.length() };
 	}
+}
+
+inline std::string get_executable_name() {
+    // the lengh is enough
+    constexpr size_t len = 2048;
+    char full_path[len]{};
+    std::string_view path;
+    readlink("/proc/self/exe", full_path, len);
+    path = full_path;
+    std::string name{path.substr(path.find_last_of(R"(/)") + 1)};
+    return name;
 }
 
 struct self_cpu_occupy {
@@ -141,8 +153,16 @@ inline bool is_in_container() {
     }
     auto regex_id = std::regex(R"(^.*/(?:.*-)?([0-9a-f]+)(?:\.|\s*$))");
     char buf[1024] = { 0 };
-    while (fgets(buf, sizeof(buf), fp)) {
-        SPDLOG_INFO("cgroup buf: {}", buf);
+
+    while (fgets(buf, 1024, fp)) {
+        if ((strstr(buf, "docker") != nullptr) ||
+            (strstr(buf, "kubepods") != nullptr) ||
+            (strstr(buf, "lxc") != nullptr) ||
+            (strstr(buf, "rkt") != nullptr) ||
+            (strstr(buf, "sandbox") != nullptr)) {
+            return true;
+        }
+        // maybe useful for unknown container
         if (std::regex_match(buf, regex_id)) {
             return true;
         }
@@ -150,6 +170,122 @@ inline bool is_in_container() {
     }
     fclose(fp);
     return false;
+}
+
+int get_self_pid() {
+    return getpid();
+}
+
+inline void set_cgroup_cpu_limit(std::error_code& ec, int percentage) {
+    ec.clear();
+    auto set_cgroup_cpu = [&ec, percentage](const std::string& cpu_path) {
+        auto self_cpu_path = cpu_path + get_executable_name();
+        auto ok = std::filesystem::create_directory(self_cpu_path, ec);
+
+        //period
+        int defualt_cfs_period_us = 100000;
+        {
+            auto cpu_period_path = self_cpu_path + "/cpu.cfs_period_us";
+            auto fp = fopen(cpu_period_path.data(), "r");
+            if (fp == nullptr) {
+                ec = std::error_code(errno, std::system_category());
+                return;
+            }
+            char buf[128] = { 0 };
+            fgets(buf, sizeof(buf), fp);
+            sscanf(buf, "%d", &defualt_cfs_period_us);
+            fclose(fp);
+        }
+        //quota
+        {
+            int cfs_quota_us = defualt_cfs_period_us / 100 * percentage * get_nprocs();
+            auto cpu_quota_path = self_cpu_path + "/cpu.cfs_quota_us";
+            auto fp = fopen(cpu_quota_path.data(), "wb");
+            if (fp == nullptr) {
+                ec = std::error_code(errno, std::system_category());
+                return;
+            }
+            fprintf(fp, "%d", cfs_quota_us);
+            fclose(fp);
+        }
+        //tasks
+        {
+            auto cpu_task_path = self_cpu_path + "/tasks";
+            auto fp = fopen(cpu_task_path.data(), "wb");
+            if (fp == nullptr) {
+                ec = std::error_code(errno, std::system_category());
+                return;
+            }
+            fprintf(fp, "%d", get_self_pid());
+            fclose(fp);
+        }
+    };
+
+    std::string cpu_path = "/sys/fs/cgroup/cpu/";
+    auto exist = std::filesystem::exists(cpu_path, ec);
+    if (exist) {
+        set_cgroup_cpu(cpu_path);
+        return;
+    }
+
+    std::string old_cpu_path = "/cgroup/cpu/";
+    exist = std::filesystem::exists(cpu_path, ec);
+    if (exist) {
+        set_cgroup_cpu(cpu_path);
+    }
+}
+
+inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
+    ec.clear();
+    auto set_cgroup_memory = [&ec, limit_bytes](const std::string& memory_path) {
+        auto self_memory_path = memory_path + get_executable_name();
+        std::filesystem::create_directory(self_memory_path, ec);
+
+        //memory limit
+        {
+            auto mem_limit_path = self_memory_path + "/memory.limit_in_bytes";
+            auto fp = fopen(mem_limit_path.data(), "wb");
+            if (fp == nullptr) {
+                ec = std::error_code(errno, std::system_category());
+                return;
+            }
+            fprintf(fp, "%llu", limit_bytes);
+            fclose(fp);
+        }
+        //memory swap limit, some linux do not support this feature
+        {
+            auto mem_limit_path = self_memory_path + "/memory.memsw.limit_in_bytes";
+            auto fp = fopen(mem_limit_path.data(), "wb");
+            if (fp != nullptr) {
+                fprintf(fp, "%llu", limit_bytes);
+                fclose(fp);
+            }
+        }
+        //tasks
+        {
+            auto mem_task_path = self_memory_path + "/tasks";
+            auto fp = fopen(mem_task_path.data(), "wb");
+            if (fp == nullptr) {
+                ec = std::error_code(errno, std::system_category());
+                return;
+            }
+            fprintf(fp, "%d", get_self_pid());
+            fclose(fp);
+        }
+    };
+
+    std::string memory_path = "/sys/fs/cgroup/memory/";
+    auto exist = std::filesystem::exists(memory_path, ec);
+    if (exist) {
+        set_cgroup_memory(memory_path);
+        return;
+    }
+
+    std::string old_memory_path = "/cgroup/memory/";
+    exist = std::filesystem::exists(old_memory_path, ec);
+    if (exist) {
+        set_cgroup_memory(old_memory_path);
+    }
 }
 
 }
