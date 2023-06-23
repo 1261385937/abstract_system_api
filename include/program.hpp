@@ -46,7 +46,7 @@ public:
         return api::is_in_container();
     }
 
-    int get_pid() {
+    uint32_t get_pid() {
         return api::get_self_pid();
     }
 

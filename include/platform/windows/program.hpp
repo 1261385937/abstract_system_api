@@ -124,8 +124,8 @@ inline bool is_in_container() {
     return false; 
 }
 
-int get_self_pid() {
-    return getpid();
+inline uint32_t get_self_pid() {
+    return GetCurrentProcessId();
 }
 
 inline void set_cgroup_cpu_limit(std::error_code& ec, int) {
