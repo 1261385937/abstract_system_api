@@ -172,15 +172,15 @@ inline bool is_in_container() {
     return false;
 }
 
-int get_self_pid() {
+inline int get_self_pid() {
     return getpid();
 }
 
-inline void set_cgroup_cpu_limit(std::error_code& ec, int percentage) {
+inline void set_cgroup_cpu_limit(std::error_code& ec, float percentage) {
     ec.clear();
     auto set_cgroup_cpu = [&ec, percentage](const std::string& cpu_path) {
         auto self_cpu_path = cpu_path + get_executable_name();
-        auto ok = std::filesystem::create_directory(self_cpu_path, ec);
+        std::filesystem::create_directory(self_cpu_path, ec);
 
         //period
         int defualt_cfs_period_us = 100000;
@@ -198,7 +198,8 @@ inline void set_cgroup_cpu_limit(std::error_code& ec, int percentage) {
         }
         //quota
         {
-            int cfs_quota_us = defualt_cfs_period_us / 100 * percentage * get_nprocs();
+            int cfs_quota_us = static_cast<int>(
+                static_cast<float>(defualt_cfs_period_us * get_nprocs()) * percentage) / 100;
             auto cpu_quota_path = self_cpu_path + "/cpu.cfs_quota_us";
             auto fp = fopen(cpu_quota_path.data(), "wb");
             if (fp == nullptr) {
