@@ -46,17 +46,17 @@ public:
         return api::is_in_container();
     }
 
-    int get_pid() {
+    uint32_t get_pid() {
         return api::get_self_pid();
     }
 
     //default max 10% usage for whole cores
-    void set_cgroup_cpu_limit(std::error_code& ec, int percentage = 10) {
+    void set_cgroup_cpu_limit(std::error_code& ec, float percentage = 10) {
         api::set_cgroup_cpu_limit(ec, percentage);
     }
 
     //default max 200MB for memory limit
-    inline void set_cgroup_memory_limit(std::error_code& ec,
+    void set_cgroup_memory_limit(std::error_code& ec,
                                         uint64_t limit_bytes = 200 * 1024 * 1024) {
         api::set_cgroup_memory_limit(ec, limit_bytes);
     }
