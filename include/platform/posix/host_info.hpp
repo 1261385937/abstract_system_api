@@ -210,12 +210,12 @@ inline network_card_t get_network_card(std::error_code& ec) {
     network_card_t cards;
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
         std::string name = ifa->ifa_name;
-        if (name == "docker0" ||
-            (name.length() > 4 && name.compare(0, 4, "veth") == 0) ||
-            (name.length() > 3 && name.compare(0, 3, "br-") == 0))
-        {
-            continue; //remove docker interface
-        }
+        //if (name == "docker0" ||
+        //    (name.length() > 4 && name.compare(0, 4, "veth") == 0) ||
+        //    (name.length() > 3 && name.compare(0, 3, "br-") == 0))
+        //{
+        //    continue; //remove docker interface
+        //}
 
         auto it = cards.find(name);
         if (it == cards.end()) {
