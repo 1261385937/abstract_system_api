@@ -14,6 +14,7 @@ struct cpu_occupy {
 
 struct networkcard {
 	bool is_down;
+	bool is_physics;
 	std::string real_name;
 	std::string friend_name;
 	std::string desc; //"Software Loopback Interface 1"

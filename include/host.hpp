@@ -46,6 +46,10 @@ public:
         return api::get_network_card(ec);
     }
 
+    auto is_physics_network_card(const std::string& card_name) {
+        return api::is_physics(card_name);
+    }
+
     auto calculate_network_card_speed(uint32_t interval_s,
         const card_flow& pre_flow, const card_flow& now_flow)
     {

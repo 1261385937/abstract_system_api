@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <codecvt>
 #include <vector>
+#include <set>
 #include <unordered_set>
 #include <unordered_map>
 #include <filesystem>
@@ -199,6 +200,27 @@ inline uint32_t get_network_card_speed(const std::string& card_name, std::error_
     return atoi(buf);
 };
 
+inline auto get_virtual_network_card() {
+    std::set<std::string> virtual_cards;
+    if (!std::filesystem::exists("/sys/devices/virtual/net/")) {
+        return virtual_cards;
+    }
+
+    std::filesystem::directory_iterator di("/sys/devices/virtual/net/");
+    for (const auto& entry : di) {
+        virtual_cards.emplace(entry.path().filename());
+    }
+    return virtual_cards;
+}
+
+inline bool is_physics(const std::string& network_card_name) {
+    auto virtual_cards = get_virtual_network_card();
+    if (auto it = virtual_cards.find(network_card_name); it != virtual_cards.end()) {
+        return false;
+    }
+    return true;
+}
+
 inline network_card_t get_network_card(std::error_code& ec) {
     ec.clear();
     ifaddrs* ifList{};
@@ -206,6 +228,7 @@ inline network_card_t get_network_card(std::error_code& ec) {
         ec = std::error_code(errno, std::system_category());
         return {};
     }
+    auto virtual_cards = get_virtual_network_card();
 
     network_card_t cards;
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
@@ -222,6 +245,7 @@ inline network_card_t get_network_card(std::error_code& ec) {
             networkcard card{};
             card.is_down = get_network_card_state(name, ec)
                 == card_state::down ? true : false;
+            card.is_physics = (virtual_cards.find(name) == virtual_cards.end());
             card.real_name = name;
             card.friend_name = name;
             card.desc = name;

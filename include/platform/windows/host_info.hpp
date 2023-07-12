@@ -69,7 +69,7 @@ inline std::string get_os_info(std::error_code& ec)
             os_info = "windows 11";
         }
         else {
-            os_info =  "windows 10";
+            os_info = "windows 10";
         }
         return os_info;
     }
@@ -148,6 +148,39 @@ inline int32_t get_memory_usage(std::error_code& ec)
     return ex.dwMemoryLoad;
 }
 
+inline bool is_physics(const std::string& network_card_name) {
+    char prefix[] = R"(SYSTEM\CurrentControlSet\Control\Network\{4D36E972-E325-11CE-BFC1-08002BE10318})";
+    HKEY subKey = NULL;
+    auto ret = RegOpenKeyExA(HKEY_LOCAL_MACHINE, prefix, 0, KEY_READ, &subKey);
+    if (ret != ERROR_SUCCESS) {
+        return false;
+    }
+    auto deleter = std::shared_ptr<char>(new char,
+                                         [subKey](char* p) {delete[] p; RegCloseKey(subKey); });
+
+    std::string conn = network_card_name + R"(\Connection)";
+    HKEY localKey = NULL;
+    ret = RegOpenKeyExA(subKey, conn.data(), 0, KEY_READ, &localKey);
+    if (ERROR_SUCCESS != ret) {
+        return false;
+    }
+    auto deleter1 = std::shared_ptr<char>(new char,
+                                         [localKey](char* p) {delete[] p; RegCloseKey(localKey); });
+
+    DWORD type = REG_SZ;
+    char data[512]{};
+    DWORD data_Size = sizeof(data);
+    ret = RegQueryValueExA(localKey, "PnPInstanceId", 0, &type, (BYTE*)data, &data_Size);
+    if (ERROR_SUCCESS != ret) {
+        return false;
+    }
+
+    if (0 == strncmp(data, "PCI", 3) || 0 == strncmp(data, "USB", 3)) {
+        return true;
+    }
+    return false;
+}
+
 inline network_card_t get_network_card(std::error_code& ec)
 {
     ec.clear();
@@ -178,6 +211,7 @@ inline network_card_t get_network_card(std::error_code& ec)
             continue;
         }
         card.is_down = (currnet->OperStatus == IF_OPER_STATUS::IfOperStatusDown);
+        card.is_physics = is_physics(currnet->AdapterName);
         card.real_name = currnet->AdapterName;
         card.friend_name = cvt.to_bytes(currnet->FriendlyName);
         card.receive_speed = currnet->ReceiveLinkSpeed / 1000 / 1000;
