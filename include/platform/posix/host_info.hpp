@@ -261,12 +261,20 @@ inline network_card_t get_network_card(std::error_code& ec) {
         if (ifa->ifa_addr->sa_family == AF_INET) {
             char address_ip[INET_ADDRSTRLEN]{};
             auto sin = (struct sockaddr_in*)ifa->ifa_addr;
-            it->second.ipv4.emplace(inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN));
+            inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN);
+            if (strncmp("169.254", address_ip, 7) == 0) { //filter Link-local address
+                continue;
+            }
+            it->second.ipv4.emplace(address_ip);
         }
         else if (ifa->ifa_addr->sa_family == AF_INET6) {
             char address_ip[INET6_ADDRSTRLEN]{};
             auto sin6 = (struct sockaddr_in6*)ifa->ifa_addr;
-            it->second.ipv6.emplace(inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN));
+            inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN);
+            if (strncmp("fe80", address_ip, 4) == 0) { //filter Link-local address
+                continue;
+            }
+            it->second.ipv6.emplace(address_ip);
         }
     }
 

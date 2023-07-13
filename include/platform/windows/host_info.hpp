@@ -222,12 +222,20 @@ inline network_card_t get_network_card(std::error_code& ec)
             if (pUnicast->Address.lpSockaddr->sa_family == AF_INET) {
                 sockaddr_in* sa_in = (sockaddr_in*)pUnicast->Address.lpSockaddr;
                 char buff[64]{};
-                card.ipv4.emplace(inet_ntop(AF_INET, &(sa_in->sin_addr), buff, 64));
+                inet_ntop(AF_INET, &(sa_in->sin_addr), buff, 64);
+                if (strncmp("169.254", buff, 7) == 0) { //filter Link-local address
+                    continue;
+                }
+                card.ipv4.emplace(buff);
             }
             else if (pUnicast->Address.lpSockaddr->sa_family == AF_INET6) {
                 sockaddr_in6* sa_in6 = (sockaddr_in6*)pUnicast->Address.lpSockaddr;
                 char buff[64]{};
-                card.ipv6.emplace(inet_ntop(AF_INET6, &(sa_in6->sin6_addr), buff, 64));
+                inet_ntop(AF_INET6, &(sa_in6->sin6_addr), buff, 64);
+                if (strncmp("fe80", buff, 4) == 0) { //filter Link-local address
+                    continue;
+                }
+                card.ipv6.emplace(buff);
             }
             else {
                 void(0);
