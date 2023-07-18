@@ -229,9 +229,11 @@ inline auto get_route_table_ipv4() {
         return tables;
     }
 
+    auto virtual_cards = get_virtual_network_card();
     char interface[128]{};
     char buf[1024]{};
     uint32_t dest = 0;
+    fgets(buf, sizeof(buf), fp);
     while (fgets(buf, sizeof(buf), fp)) {
         sscanf(buf, "%s %X", interface, &dest);
         size_t i = 0;
@@ -240,7 +242,7 @@ inline auto get_route_table_ipv4() {
             continue;
         }
         std::string name{ interface + i, strlen(interface + i) };
-        if (name == "Iface") {
+        if (virtual_cards.find(name) == virtual_cards.end()) { //physics card do not need
             continue;
         }
 
@@ -313,13 +315,12 @@ inline network_card_t get_network_card(std::error_code& ec) {
     freeifaddrs(ifList);
 
     auto route_ip = get_route_table_ipv4();
-    for (auto& [name, card_info] : cards) {
-        if (!card_info.ipv4.empty() || !card_info.ipv6.empty()) {
+    for (auto& [name, info] : cards) {
+        if (info.is_physics || !info.ipv4.empty() || !info.ipv6.empty()) {
             continue;
         }
-        auto it = route_ip.find(name);
-        if (it != route_ip.end()) {
-            card_info.ipv4.emplace(it->second);
+        if (auto it = route_ip.find(name); it != route_ip.end()) {
+            info.ipv4.emplace(std::move(it->second));
         }
     }
     return cards;
