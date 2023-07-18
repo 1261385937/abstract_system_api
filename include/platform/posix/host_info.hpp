@@ -221,6 +221,39 @@ inline bool is_physics(const std::string& network_card_name) {
     return true;
 }
 
+
+inline auto get_route_table_ipv4() {
+    std::unordered_map<std::string, std::string> tables;
+    FILE* fp = fopen("/proc/net/route", "r");
+    if (fp == nullptr) {
+        return tables;
+    }
+
+    char interface[128]{};
+    char buf[1024]{};
+    uint32_t dest = 0;
+    while (fgets(buf, sizeof(buf), fp)) {
+        sscanf(buf, "%s %X", interface, &dest);
+        size_t i = 0;
+        while (interface[i] == ' ') {
+            i++;
+            continue;
+        }
+        std::string name{ interface + i, strlen(interface + i) };
+        if (name == "Iface") {
+            continue;
+        }
+
+        struct in_addr inAddr {};
+        inAddr.s_addr = dest;
+        tables.emplace(name, inet_ntoa(inAddr)); //calico ip just has one 
+        memset(buf, 0, sizeof(buf));
+        memset(interface, 0, sizeof(interface));
+    }
+    fclose(fp);
+    return tables;
+}
+
 inline network_card_t get_network_card(std::error_code& ec) {
     ec.clear();
     ifaddrs* ifList{};
@@ -277,8 +310,18 @@ inline network_card_t get_network_card(std::error_code& ec) {
             it->second.ipv6.emplace(address_ip);
         }
     }
-
     freeifaddrs(ifList);
+
+    auto route_ip = get_route_table_ipv4();
+    for (auto& [name, card_info] : cards) {
+        if (!card_info.ipv4.empty() || !card_info.ipv6.empty()) {
+            continue;
+        }
+        auto it = route_ip.find(name);
+        if (it != route_ip.end()) {
+            card_info.ipv4.emplace(it->second);
+        }
+    }
     return cards;
 }
 
