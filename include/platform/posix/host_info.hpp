@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <codecvt>
 #include <vector>
+#include <set>
 #include <unordered_set>
 #include <unordered_map>
 #include <filesystem>
@@ -199,6 +200,62 @@ inline uint32_t get_network_card_speed(const std::string& card_name, std::error_
     return atoi(buf);
 };
 
+inline auto get_virtual_network_card() {
+    std::set<std::string> virtual_cards;
+    if (!std::filesystem::exists("/sys/devices/virtual/net/")) {
+        return virtual_cards;
+    }
+
+    std::filesystem::directory_iterator di("/sys/devices/virtual/net/");
+    for (const auto& entry : di) {
+        virtual_cards.emplace(entry.path().filename());
+    }
+    return virtual_cards;
+}
+
+inline bool is_physics(const std::string& network_card_name) {
+    auto virtual_cards = get_virtual_network_card();
+    if (auto it = virtual_cards.find(network_card_name); it != virtual_cards.end()) {
+        return false;
+    }
+    return true;
+}
+
+
+inline auto get_route_table_ipv4() {
+    std::unordered_map<std::string, std::string> tables;
+    FILE* fp = fopen("/proc/net/route", "r");
+    if (fp == nullptr) {
+        return tables;
+    }
+
+    auto virtual_cards = get_virtual_network_card();
+    char interface[128]{};
+    char buf[1024]{};
+    uint32_t dest = 0;
+    fgets(buf, sizeof(buf), fp);
+    while (fgets(buf, sizeof(buf), fp)) {
+        sscanf(buf, "%s %X", interface, &dest);
+        size_t i = 0;
+        while (interface[i] == ' ') {
+            i++;
+            continue;
+        }
+        std::string name{ interface + i, strlen(interface + i) };
+        if (virtual_cards.find(name) == virtual_cards.end()) { //physics card do not need
+            continue;
+        }
+
+        struct in_addr inAddr {};
+        inAddr.s_addr = dest;
+        tables.emplace(name, inet_ntoa(inAddr)); //calico ip just has one 
+        memset(buf, 0, sizeof(buf));
+        memset(interface, 0, sizeof(interface));
+    }
+    fclose(fp);
+    return tables;
+}
+
 inline network_card_t get_network_card(std::error_code& ec) {
     ec.clear();
     ifaddrs* ifList{};
@@ -206,6 +263,7 @@ inline network_card_t get_network_card(std::error_code& ec) {
         ec = std::error_code(errno, std::system_category());
         return {};
     }
+    auto virtual_cards = get_virtual_network_card();
 
     network_card_t cards;
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
@@ -222,6 +280,7 @@ inline network_card_t get_network_card(std::error_code& ec) {
             networkcard card{};
             card.is_down = get_network_card_state(name, ec)
                 == card_state::down ? true : false;
+            card.is_physics = (virtual_cards.find(name) == virtual_cards.end());
             card.real_name = name;
             card.friend_name = name;
             card.desc = name;
@@ -237,16 +296,33 @@ inline network_card_t get_network_card(std::error_code& ec) {
         if (ifa->ifa_addr->sa_family == AF_INET) {
             char address_ip[INET_ADDRSTRLEN]{};
             auto sin = (struct sockaddr_in*)ifa->ifa_addr;
-            it->second.ipv4.emplace(inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN));
+            inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN);
+            if (strncmp("169.254", address_ip, 7) == 0) { //filter Link-local address
+                continue;
+            }
+            it->second.ipv4.emplace(address_ip);
         }
         else if (ifa->ifa_addr->sa_family == AF_INET6) {
             char address_ip[INET6_ADDRSTRLEN]{};
             auto sin6 = (struct sockaddr_in6*)ifa->ifa_addr;
-            it->second.ipv6.emplace(inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN));
+            inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN);
+            if (strncmp("fe80", address_ip, 4) == 0) { //filter Link-local address
+                continue;
+            }
+            it->second.ipv6.emplace(address_ip);
         }
     }
-
     freeifaddrs(ifList);
+
+    auto route_ip = get_route_table_ipv4();
+    for (auto& [name, info] : cards) {
+        if (info.is_physics || !info.ipv4.empty() || !info.ipv6.empty()) {
+            continue;
+        }
+        if (auto it = route_ip.find(name); it != route_ip.end()) {
+            info.ipv4.emplace(std::move(it->second));
+        }
+    }
     return cards;
 }
 
