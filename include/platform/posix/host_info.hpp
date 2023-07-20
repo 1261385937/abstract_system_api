@@ -181,8 +181,8 @@ inline card_state get_network_card_state(const std::string& card_name, std::erro
     return card_state::unknown;
 };
 
-inline uint32_t get_network_card_speed(const std::string& card_name, std::error_code& ec) {
-    ec.clear();
+inline uint32_t get_network_card_speed(const std::string& card_name, std::error_code&) {
+    //ec.clear();
     if (card_name == "lo") {
         return 1000 * 40;
     }
@@ -190,8 +190,8 @@ inline uint32_t get_network_card_speed(const std::string& card_name, std::error_
     auto file = "/sys/class/net/" + card_name + "/speed";
     FILE* fp = fopen(file.data(), "r");
     if (fp == nullptr) {
-        ec = std::error_code(errno, std::system_category());
-        return 0;
+        //ec = std::error_code(errno, std::system_category());
+        return 1000 * 10;
     }
     char buf[64] = { 0 };
     fgets(buf, sizeof(buf), fp);
