@@ -102,12 +102,12 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy& pre, const self_cp
     return self_cpu_usage;
 }
 
-inline double get_self_memory_usage(std::error_code& ec) {
+inline auto get_self_memory_usage(std::error_code& ec) {
     ec.clear();
     FILE* fp = fopen("/proc/self/status", "r");
     if (fp == nullptr) {
         ec = std::error_code(errno, std::system_category());
-        return {};
+        return std::make_tuple(0.0, size_t(0), size_t(0));
     }
 
     uint64_t self_vm_rss = 0;
@@ -127,7 +127,7 @@ inline double get_self_memory_usage(std::error_code& ec) {
     fp = fopen("/proc/meminfo", "r");
     if (fp == nullptr) {
         ec = std::error_code(errno, std::system_category());
-        return {};
+        return std::make_tuple(0.0, size_t(0), size_t(0));
     }
     while (fgets(buf, sizeof(buf), fp)) {      
         sscanf(buf, "%s %llu", name, &mem_total);
@@ -140,10 +140,10 @@ inline double get_self_memory_usage(std::error_code& ec) {
     fclose(fp);
 
     if (mem_total == 0) {
-        return {};
+        return std::make_tuple(0.0, size_t(0), size_t(0));;
     }
     auto self_mem_usage = (double)self_vm_rss * 100 / (double)mem_total;
-    return self_mem_usage;
+    return std::make_tuple(self_mem_usage, self_vm_rss, mem_total);
 }
 
 inline bool is_in_container() {

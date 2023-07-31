@@ -100,24 +100,24 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy& pre,
     return usage;
 }
 
-inline double get_self_memory_usage(std::error_code& ec) {
+inline auto get_self_memory_usage(std::error_code& ec) {
     ec.clear();
     MEMORYSTATUSEX ex{};
     ex.dwLength = sizeof(ex);
     auto ok = GlobalMemoryStatusEx(&ex);
     if (!ok) {
         ec = std::error_code(GetLastError(), std::system_category());
-        return {};
+        return std::make_tuple(0.0, size_t(0), size_t(0));
     }
 
     PROCESS_MEMORY_COUNTERS pmc{};
     ok = GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc));
     if (!ok) {
         ec = std::error_code(GetLastError(), std::system_category());
-        return {};
+        return std::make_tuple(0.0, size_t(0), size_t(0));
     }
     auto usage = pmc.WorkingSetSize * 100.0 / ex.ullTotalPhys;
-    return usage;
+    return std::make_tuple(usage, pmc.WorkingSetSize, ex.ullTotalPhys);
 }
 
 inline bool is_in_container() { 
