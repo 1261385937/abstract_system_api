@@ -221,6 +221,64 @@ inline bool is_physics(const std::string& network_card_name) {
     return true;
 }
 
+inline auto get_toute_table(std::error_code& ec) {
+    ec.clear();
+    std::vector<std::vector<std::string>> tables;
+    FILE* fp = fopen("/proc/net/route", "r");
+    if (fp == nullptr) {
+        ec = std::error_code(errno, std::system_category());
+        return tables;
+    }
+
+    char buf[1024]{};
+    char name[11][32]{};
+    fgets(buf, sizeof(buf), fp);
+    sscanf(buf, "%s %s %s %s %s %s %s %s %s %s %s", name[0], name[1], name[2],
+           name[3], name[4], name[5], name[6], name[7], name[8], name[9], name[10]);
+    std::vector<std::string> table;
+    table.reserve(11);
+    for (int i = 0; i < sizeof(name) / 32; i++) {
+        table.emplace_back(name[i]);
+    }
+    tables.emplace_back(std::move(table));
+    
+    while (fgets(buf, sizeof(buf), fp)) {     
+        char Iface[128]{};
+        uint32_t Destination = 0;
+        uint32_t Gateway = 0;
+        char Flags[128]{};
+        char RefCnt[128]{};
+        char Use[128]{};
+        char Metric[128]{};
+        uint32_t Mask = 0;
+        char MTU[128]{};
+        char Window[128]{};
+        char IRTT[128]{};
+        sscanf(buf, "%s %X %X %s %s %s %s %X %s %s %s",
+               Iface, &Destination, &Gateway, Flags, RefCnt, Use, Metric, &Mask, MTU, Window, IRTT);
+
+       table.emplace_back(Iface);
+       struct in_addr inAddr {};
+       inAddr.s_addr = Destination;
+       table.emplace_back(inet_ntoa(inAddr));
+       inAddr.s_addr = Gateway;
+       table.emplace_back(inet_ntoa(inAddr));
+       table.emplace_back(Flags);
+       table.emplace_back(RefCnt);
+       table.emplace_back(Use);
+       table.emplace_back(Metric);
+       inAddr.s_addr = Mask;
+       table.emplace_back(inet_ntoa(inAddr));
+       table.emplace_back(MTU);
+       table.emplace_back(Window);
+       table.emplace_back(IRTT);
+       tables.emplace_back(std::move(table));
+
+       memset(buf, 0, sizeof(buf));
+    }
+    fclose(fp);
+    return tables;
+}
 
 inline auto get_route_table_ipv4() {
     std::unordered_map<std::string, std::string> tables;
