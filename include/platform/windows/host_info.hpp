@@ -299,5 +299,11 @@ inline disk_info get_disk_info(std::string_view name, std::error_code& ec) {
     return info;
 }
 
+auto get_toute_table(std::error_code& ec) {
+    ec.clear();
+    std::vector<std::string> tables;
+    return tables;
+}
+
 }
 }

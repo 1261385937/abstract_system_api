@@ -84,6 +84,10 @@ public:
     auto get_disk_info(std::string_view name, std::error_code& ec) {
         return api::get_disk_info(name, ec);
     }
+
+    auto get_toute_table(std::error_code& ec) {
+        return api::get_toute_table(ec);
+    }
 };
 
 }

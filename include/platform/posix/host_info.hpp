@@ -221,6 +221,23 @@ inline bool is_physics(const std::string& network_card_name) {
     return true;
 }
 
+auto get_toute_table(std::error_code& ec) {
+    ec.clear();
+    std::vector<std::string> tables;
+    FILE* fp = fopen("/proc/net/route", "r");
+    if (fp == nullptr) {
+        ec = std::error_code(errno, std::system_category());
+        return tables;
+    }
+
+    char buf[1024]{};
+    while (fgets(buf, sizeof(buf), fp)) {
+        tables.emplace_back(buf);
+        memset(buf, 0, sizeof(buf));
+    }
+    fclose(fp);
+    return tables;
+}
 
 inline auto get_route_table_ipv4() {
     std::unordered_map<std::string, std::string> tables;
