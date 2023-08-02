@@ -128,12 +128,55 @@ inline uint32_t get_self_pid() {
     return GetCurrentProcessId();
 }
 
-inline void set_cgroup_cpu_limit(std::error_code& ec, float) {
+inline void set_cgroup_cpu_limit(std::error_code& ec, float percentage) {
     ec.clear();
+
+    auto job = CreateJobObjectA(nullptr, nullptr);
+    if (job == nullptr) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return;
+    }
+    auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
+
+    JOBOBJECT_CPU_RATE_CONTROL_INFORMATION cpu_limit{};
+    cpu_limit.ControlFlags = 
+        JOB_OBJECT_CPU_RATE_CONTROL_ENABLE | JOB_OBJECT_CPU_RATE_CONTROL_HARD_CAP;
+    cpu_limit.CpuRate = static_cast<DWORD>(percentage * 100);
+    auto ret = SetInformationJobObject(job,
+        JobObjectCpuRateControlInformation, &cpu_limit, sizeof(cpu_limit));
+    if (ret == 0) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return;
+    }
+    ret = AssignProcessToJobObject(job, GetCurrentProcess());
+    if (ret == 0) {
+        ec = std::error_code(GetLastError(), std::system_category());
+    }
 }
 
-inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t) {
+inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
     ec.clear();
+
+    auto job = CreateJobObjectA(nullptr, nullptr);
+    if (job == nullptr) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return;
+    }
+    auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION mem_limit{};
+    mem_limit.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
+    mem_limit.JobMemoryLimit = limit_bytes;
+    auto ret = SetInformationJobObject(job,
+        JobObjectExtendedLimitInformation, &mem_limit, sizeof(mem_limit));
+    if (ret == 0) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return;
+    }
+    ret = AssignProcessToJobObject(job, GetCurrentProcess());
+    if (ret == 0) {
+        ec = std::error_code(GetLastError(), std::system_category());
+    }
 }
 
 }  // namespace windows

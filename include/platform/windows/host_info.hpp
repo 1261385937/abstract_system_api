@@ -155,8 +155,8 @@ inline bool is_physics(const std::string& network_card_name) {
     if (ret != ERROR_SUCCESS) {
         return false;
     }
-    auto deleter = std::shared_ptr<char>(new char,
-                                         [subKey](char* p) {delete[] p; RegCloseKey(subKey); });
+    auto deleter = std::shared_ptr<char>(
+        new char, [subKey](char* p) {delete p; RegCloseKey(subKey); });
 
     std::string conn = network_card_name + R"(\Connection)";
     HKEY localKey = NULL;
@@ -164,8 +164,8 @@ inline bool is_physics(const std::string& network_card_name) {
     if (ERROR_SUCCESS != ret) {
         return false;
     }
-    auto deleter1 = std::shared_ptr<char>(new char,
-                                         [localKey](char* p) {delete[] p; RegCloseKey(localKey); });
+    auto deleter1 = std::shared_ptr<char>(
+        new char, [localKey](char* p) {delete p; RegCloseKey(localKey); });
 
     DWORD type = REG_SZ;
     char data[512]{};
