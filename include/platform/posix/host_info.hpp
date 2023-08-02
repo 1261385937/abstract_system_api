@@ -230,14 +230,15 @@ inline auto get_toute_table(std::error_code& ec) {
         return tables;
     }
 
+    constexpr size_t count = 11;
     char buf[1024]{};
-    char name[11][32]{};
+    char name[count][32]{};
     fgets(buf, sizeof(buf), fp);
     sscanf(buf, "%s %s %s %s %s %s %s %s %s %s %s", name[0], name[1], name[2],
            name[3], name[4], name[5], name[6], name[7], name[8], name[9], name[10]);
     std::vector<std::string> table;
-    table.reserve(11);
-    for (int i = 0; i < sizeof(name) / 32; i++) {
+    table.reserve(count);
+    for (size_t i = 0; i < count; i++) {
         table.emplace_back(name[i]);
     }
     tables.emplace_back(std::move(table));
