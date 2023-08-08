@@ -8,6 +8,8 @@
 #include <unordered_map>
 #include <filesystem>
 #include <system_error>
+#include <future>
+#include <tuple>
 
 #include <unistd.h>
 #include <string.h>
@@ -16,6 +18,7 @@
 #include <ifaddrs.h>  
 #include <arpa/inet.h>
 #include <sys/statfs.h> 
+#include <fcntl.h>
 
 #include "host_handle.hpp"
 
@@ -315,6 +318,97 @@ inline auto get_route_table_ipv4() {
     return tables;
 }
 
+using ipv46_set = std::pair<std::unordered_set<std::string>, std::unordered_set<std::string>>;
+using container_ip_type = std::unordered_map<uint32_t, ipv46_set>;
+inline void get_container_ip_impl(std::error_code& ec, container_ip_type& set) {
+    ec.clear();
+    ifaddrs* ifList{};
+    if (getifaddrs(&ifList) < 0) {
+        ec = std::error_code(errno, std::system_category());
+        return;
+    }
+;
+    for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr) {
+            continue;
+        }
+        std::string name = ifa->ifa_name;
+        if (name == "lo" || name == "tunl0") {
+            continue;
+        }
+        
+        auto ifindex = if_nametoindex(name.data());
+        auto &[ipv4, ipv6] = set[ifindex];
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            char address_ip[INET_ADDRSTRLEN]{};
+            auto sin = (struct sockaddr_in*)ifa->ifa_addr;
+            inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN);
+            if (strncmp("169.254", address_ip, 7) != 0) { //filter Link-local address
+                ipv4.emplace(address_ip);
+            }
+        }
+        else if (ifa->ifa_addr->sa_family == AF_INET6) {
+            char address_ip[INET6_ADDRSTRLEN]{};
+            auto sin6 = (struct sockaddr_in6*)ifa->ifa_addr;
+            inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN);
+            if (strncmp("fe80", address_ip, 4) != 0) { //filter Link-local address
+                ipv6.emplace(address_ip);
+            }
+        }
+    }
+    freeifaddrs(ifList);
+}
+inline auto get_container_ip(std::error_code& ec) {
+    ec.clear();
+
+    //enter a new net namespace may change some thing, so a thread is required.
+    auto result = std::async(std::launch::async, [&ec]() {
+        container_ip_type ip_set;
+        namespace fs = std::filesystem;
+        try {
+            //get net namespace different from process 1.
+            auto process_1_net_ns_flag = fs::read_symlink("/proc/1/ns/net").string();
+            std::set<std::string> new_net_ns;
+            for (const auto& entry : fs::directory_iterator("/proc/")) {
+                auto flag = entry.path().string() + "/ns/net";
+                if (!fs::exists(flag) || fs::read_symlink(flag).string() == process_1_net_ns_flag) {
+                    continue;
+                }
+
+                //enter each net namespace to get ip
+                auto fd = open(flag.data(), O_RDONLY);
+                if (fd == -1) {
+                    ec = std::error_code(errno, std::system_category());
+                    continue;
+                }
+                auto closer = std::shared_ptr<char>(new char, [fd](char* p) {delete p; close(fd); });
+                if (setns(fd, 0) == -1) {
+                    ec = std::error_code(errno, std::system_category());
+                    continue;
+                }
+                get_container_ip_impl(ec, ip_set);
+            }
+        }
+        catch (const fs::filesystem_error& e) {
+            ec = e.code();
+        }
+        return ip_set;
+    });
+    return result.get();
+}
+
+inline auto get_network_card_iflink(const std::string& name) {
+    auto file_name = "/sys/class/net/" + name + "/iflink";
+    FILE* fp = fopen(file_name.data(), "r");
+    if (fp == nullptr) {
+        return (uint32_t)0;
+    }
+    char buf[8] = { 0 };
+    fgets(buf, sizeof(buf), fp);
+    fclose(fp);
+    return (uint32_t)atoi(buf);
+}
+
 inline network_card_t get_network_card(std::error_code& ec) {
     ec.clear();
     ifaddrs* ifList{};
@@ -327,18 +421,11 @@ inline network_card_t get_network_card(std::error_code& ec) {
     network_card_t cards;
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
         std::string name = ifa->ifa_name;
-        //if (name == "docker0" ||
-        //    (name.length() > 4 && name.compare(0, 4, "veth") == 0) ||
-        //    (name.length() > 3 && name.compare(0, 3, "br-") == 0))
-        //{
-        //    continue; //remove docker interface
-        //}
-
         auto it = cards.find(name);
         if (it == cards.end()) {
             networkcard card{};
-            card.is_down = get_network_card_state(name, ec)
-                == card_state::down ? true : false;
+            card.iflink = get_network_card_iflink(name);
+            card.is_down = get_network_card_state(name, ec) == card_state::down ? true : false;
             card.is_physics = (virtual_cards.find(name) == virtual_cards.end());
             card.real_name = name;
             card.friend_name = name;
@@ -356,31 +443,30 @@ inline network_card_t get_network_card(std::error_code& ec) {
             char address_ip[INET_ADDRSTRLEN]{};
             auto sin = (struct sockaddr_in*)ifa->ifa_addr;
             inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN);
-            if (strncmp("169.254", address_ip, 7) == 0) { //filter Link-local address
-                continue;
-            }
-            it->second.ipv4.emplace(address_ip);
+            if (strncmp("169.254", address_ip, 7) != 0) { //filter Link-local address
+                it->second.ipv4.emplace(address_ip);
+            }        
         }
         else if (ifa->ifa_addr->sa_family == AF_INET6) {
             char address_ip[INET6_ADDRSTRLEN]{};
             auto sin6 = (struct sockaddr_in6*)ifa->ifa_addr;
             inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN);
-            if (strncmp("fe80", address_ip, 4) == 0) { //filter Link-local address
-                continue;
+            if (strncmp("fe80", address_ip, 4) != 0) { //filter Link-local address
+               it->second.ipv6.emplace(address_ip);
             }
-            it->second.ipv6.emplace(address_ip);
         }
     }
     freeifaddrs(ifList);
 
-    auto route_ip = get_route_table_ipv4();
+    std::error_code ig;
+    auto ips = get_container_ip(ec);
     for (auto& [name, info] : cards) {
-        if (info.is_physics || !info.ipv4.empty() || !info.ipv6.empty()) {
-            continue;
-        }
-        if (auto it = route_ip.find(name); it != route_ip.end()) {
-            info.ipv4.emplace(std::move(it->second));
-        }
+        if (auto it = ips.find(info.iflink);
+            it != ips.end() && info.ipv4.empty() && info.ipv6.empty()) {//this is a container card
+            auto &&[ipv4, ipv6] = it->second;
+            info.ipv4 = std::move(std::move(ipv4));
+            info.ipv6 = std::move(std::move(ipv6));
+        }    
     }
     return cards;
 }
