@@ -335,7 +335,7 @@ inline auto get_network_card_iflink(const std::string& name) {
     return (uint32_t)atoi(buf);
 }
 
-inline auto get_veth_pair_card_iflink() {
+inline auto get_veth_peer_card_iflink() {
     std::unordered_map<std::string, uint32_t> iflinks;
     struct nl_req {
         struct nlmsghdr hdr;
@@ -424,7 +424,6 @@ inline auto get_veth_pair_card_iflink() {
     return iflinks;
 }
 
-
 using ipv46_set = std::pair<std::unordered_set<std::string>, std::unordered_set<std::string>>;
 using container_ip_type = std::unordered_map<uint32_t, ipv46_set>;
 inline void get_container_ip_impl(std::error_code& ec, container_ip_type& set) {
@@ -434,7 +433,7 @@ inline void get_container_ip_impl(std::error_code& ec, container_ip_type& set) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
-    auto iflinks = get_veth_pair_card_iflink();
+    auto iflinks = get_veth_peer_card_iflink();
 
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
         if (ifa->ifa_addr == nullptr) {
@@ -517,13 +516,17 @@ inline network_card_t get_network_card(std::error_code& ec) {
     }
     auto virtual_cards = get_virtual_network_card();
 
+    bool has_veth_pair_card = false;
     network_card_t cards;
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
         std::string name = ifa->ifa_name;
         auto it = cards.find(name);
         if (it == cards.end()) {
             networkcard card{};
-            card.ifindex = if_nametoindex(name.data());
+            auto iflink = get_network_card_iflink(name);
+            auto ifindex = if_nametoindex(name.data());
+            has_veth_pair_card = (iflink != ifindex);
+            card.ifindex = ifindex;
             card.is_down = get_network_card_state(name, ec) == card_state::down ? true : false;
             card.is_physics = (virtual_cards.find(name) == virtual_cards.end());
             card.real_name = name;
@@ -557,6 +560,9 @@ inline network_card_t get_network_card(std::error_code& ec) {
     }
     freeifaddrs(ifList);
 
+    if (!has_veth_pair_card) {
+        return cards;
+    }
     std::error_code ig;
     auto ips = get_container_ip(ec);
     for (auto& [name, info] : cards) {
