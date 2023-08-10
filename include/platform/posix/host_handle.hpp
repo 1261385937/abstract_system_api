@@ -25,7 +25,7 @@ struct memory_info {
 };
 
 struct networkcard {
-	uint32_t iflink;
+	uint32_t ifindex;
 	bool is_down;
 	bool is_physics;
 	std::string real_name;

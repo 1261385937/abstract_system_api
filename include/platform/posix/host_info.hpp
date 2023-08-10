@@ -15,10 +15,15 @@
 #include <string.h>
 #include <math.h>
 #include <net/if.h>
-#include <ifaddrs.h>  
+#include <ifaddrs.h>
 #include <arpa/inet.h>
 #include <sys/statfs.h> 
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <linux/types.h>
+#include <linux/netlink.h>
+#include <linux/rtnetlink.h>
 
 #include "host_handle.hpp"
 
@@ -245,8 +250,8 @@ inline auto get_toute_table(std::error_code& ec) {
         table.emplace_back(name[i]);
     }
     tables.emplace_back(std::move(table));
-    
-    while (fgets(buf, sizeof(buf), fp)) {     
+
+    while (fgets(buf, sizeof(buf), fp)) {
         char Iface[128]{};
         uint32_t Destination = 0;
         uint32_t Gateway = 0;
@@ -261,24 +266,24 @@ inline auto get_toute_table(std::error_code& ec) {
         sscanf(buf, "%s %X %X %s %s %s %s %X %s %s %s",
                Iface, &Destination, &Gateway, Flags, RefCnt, Use, Metric, &Mask, MTU, Window, IRTT);
 
-       table.emplace_back(Iface);
-       struct in_addr inAddr {};
-       inAddr.s_addr = Destination;
-       table.emplace_back(inet_ntoa(inAddr));
-       inAddr.s_addr = Gateway;
-       table.emplace_back(inet_ntoa(inAddr));
-       table.emplace_back(Flags);
-       table.emplace_back(RefCnt);
-       table.emplace_back(Use);
-       table.emplace_back(Metric);
-       inAddr.s_addr = Mask;
-       table.emplace_back(inet_ntoa(inAddr));
-       table.emplace_back(MTU);
-       table.emplace_back(Window);
-       table.emplace_back(IRTT);
-       tables.emplace_back(std::move(table));
+        table.emplace_back(Iface);
+        struct in_addr inAddr {};
+        inAddr.s_addr = Destination;
+        table.emplace_back(inet_ntoa(inAddr));
+        inAddr.s_addr = Gateway;
+        table.emplace_back(inet_ntoa(inAddr));
+        table.emplace_back(Flags);
+        table.emplace_back(RefCnt);
+        table.emplace_back(Use);
+        table.emplace_back(Metric);
+        inAddr.s_addr = Mask;
+        table.emplace_back(inet_ntoa(inAddr));
+        table.emplace_back(MTU);
+        table.emplace_back(Window);
+        table.emplace_back(IRTT);
+        tables.emplace_back(std::move(table));
 
-       memset(buf, 0, sizeof(buf));
+        memset(buf, 0, sizeof(buf));
     }
     fclose(fp);
     return tables;
@@ -318,6 +323,108 @@ inline auto get_route_table_ipv4() {
     return tables;
 }
 
+inline auto get_network_card_iflink(const std::string& name) {
+    auto file_name = "/sys/class/net/" + name + "/iflink";
+    FILE* fp = fopen(file_name.data(), "r");
+    if (fp == nullptr) {
+        return (uint32_t)0;
+    }
+    char buf[8] = { 0 };
+    fgets(buf, sizeof(buf), fp);
+    fclose(fp);
+    return (uint32_t)atoi(buf);
+}
+
+inline auto get_veth_pair_card_iflink() {
+    std::unordered_map<std::string, uint32_t> iflinks;
+    struct nl_req {
+        struct nlmsghdr hdr;
+        struct rtgenmsg gen;
+    };
+
+    struct sockaddr_nl kernel {};
+    kernel.nl_family = AF_NETLINK;
+
+    struct sockaddr_nl local {};
+    local.nl_family = AF_NETLINK;
+    local.nl_pid = getpid();
+    local.nl_groups = 0;
+
+    nl_req req{};
+    req.hdr.nlmsg_len = NLMSG_LENGTH(sizeof(struct rtgenmsg));
+    req.hdr.nlmsg_type = RTM_GETLINK;
+    req.hdr.nlmsg_flags = NLM_F_REQUEST | NLM_F_DUMP;
+    req.hdr.nlmsg_pid = getpid();
+    req.hdr.nlmsg_seq = 1;
+    req.gen.rtgen_family = AF_PACKET;
+
+    struct iovec iov {};
+    iov.iov_base = &req;
+    iov.iov_len = req.hdr.nlmsg_len;
+
+    struct msghdr msg {};
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_name = &kernel;
+    msg.msg_namelen = sizeof(kernel);
+
+    auto fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+    if (fd < 0) {
+        return iflinks;
+    }
+    auto closer = std::shared_ptr<char>(new char, [fd](char* p) {delete p; close(fd); });
+
+    auto ok = bind(fd, (struct sockaddr*)&local, sizeof(local));
+    if (ok < 0) {
+        return iflinks;
+    }
+    sendmsg(fd, (struct msghdr*)&msg, 0);
+
+    memset(&iov, 0, sizeof(iov));
+    constexpr int buf_size = 1024 * 32;
+    char buf[buf_size]{};
+    iov.iov_base = buf;
+    iov.iov_len = buf_size;
+    int64_t msg_len = 0;
+
+    while (true) {
+        msg_len = recvmsg(fd, &msg, 0);
+        if (msg_len < 0) {
+            break;
+        }
+        auto nlmsg_ptr = (struct nlmsghdr*)buf;
+        if (nlmsg_ptr->nlmsg_type == NLMSG_DONE || nlmsg_ptr->nlmsg_type == NLMSG_ERROR) {
+            break;
+        }
+
+        while (NLMSG_OK(nlmsg_ptr, msg_len)) {
+            if (nlmsg_ptr->nlmsg_type == RTM_NEWLINK) {
+                auto ifi_ptr = (struct ifinfomsg*)NLMSG_DATA(nlmsg_ptr);
+                auto attr_ptr = IFLA_RTA(ifi_ptr);
+                auto attr_len = nlmsg_ptr->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi_ptr));
+               
+                std::string ifname;
+                uint32_t iflink = 0;
+                while (RTA_OK(attr_ptr, attr_len)) {             
+                    if (attr_ptr->rta_type == IFLA_IFNAME) {
+                        ifname = (char*)RTA_DATA(attr_ptr);          
+                    }
+                    if (attr_ptr->rta_type == IFLA_LINK) {
+                        iflink = *((uint32_t*)RTA_DATA(attr_ptr));
+                    }
+                    attr_ptr = RTA_NEXT(attr_ptr, attr_len);                   
+                }
+                if (iflink != 0) {
+                    iflinks.emplace(std::move(ifname), iflink);
+                }
+            }
+            nlmsg_ptr = NLMSG_NEXT(nlmsg_ptr, msg_len);
+        }
+    }
+    return iflinks;
+}
+
+
 using ipv46_set = std::pair<std::unordered_set<std::string>, std::unordered_set<std::string>>;
 using container_ip_type = std::unordered_map<uint32_t, ipv46_set>;
 inline void get_container_ip_impl(std::error_code& ec, container_ip_type& set) {
@@ -327,7 +434,8 @@ inline void get_container_ip_impl(std::error_code& ec, container_ip_type& set) {
         ec = std::error_code(errno, std::system_category());
         return;
     }
-;
+    auto iflinks = get_veth_pair_card_iflink();
+
     for (auto ifa = ifList; ifa != nullptr; ifa = ifa->ifa_next) {
         if (ifa->ifa_addr == nullptr) {
             continue;
@@ -336,9 +444,12 @@ inline void get_container_ip_impl(std::error_code& ec, container_ip_type& set) {
         if (name == "lo" || name == "tunl0") {
             continue;
         }
-        
-        auto ifindex = if_nametoindex(name.data());
-        auto &[ipv4, ipv6] = set[ifindex];
+        auto it = iflinks.find(name);
+        if (it == iflinks.end()) {
+            continue;
+        }
+
+        auto& [ipv4, ipv6] = set[it->second];
         if (ifa->ifa_addr->sa_family == AF_INET) {
             char address_ip[INET_ADDRSTRLEN]{};
             auto sin = (struct sockaddr_in*)ifa->ifa_addr;
@@ -370,13 +481,13 @@ inline auto get_container_ip(std::error_code& ec) {
             auto process_1_net_ns_flag = fs::read_symlink("/proc/1/ns/net").string();
             std::set<std::string> new_net_ns;
             for (const auto& entry : fs::directory_iterator("/proc/")) {
-                auto flag = entry.path().string() + "/ns/net";
-                if (!fs::exists(flag) || fs::read_symlink(flag).string() == process_1_net_ns_flag) {
+                auto net = entry.path().string() + "/ns/net";
+                if (!fs::exists(net) || fs::read_symlink(net).string() == process_1_net_ns_flag) {
                     continue;
                 }
 
                 //enter each net namespace to get ip
-                auto fd = open(flag.data(), O_RDONLY);
+                auto fd = open(net.data(), O_RDONLY);
                 if (fd == -1) {
                     ec = std::error_code(errno, std::system_category());
                     continue;
@@ -397,18 +508,6 @@ inline auto get_container_ip(std::error_code& ec) {
     return result.get();
 }
 
-inline auto get_network_card_iflink(const std::string& name) {
-    auto file_name = "/sys/class/net/" + name + "/iflink";
-    FILE* fp = fopen(file_name.data(), "r");
-    if (fp == nullptr) {
-        return (uint32_t)0;
-    }
-    char buf[8] = { 0 };
-    fgets(buf, sizeof(buf), fp);
-    fclose(fp);
-    return (uint32_t)atoi(buf);
-}
-
 inline network_card_t get_network_card(std::error_code& ec) {
     ec.clear();
     ifaddrs* ifList{};
@@ -424,7 +523,7 @@ inline network_card_t get_network_card(std::error_code& ec) {
         auto it = cards.find(name);
         if (it == cards.end()) {
             networkcard card{};
-            card.iflink = get_network_card_iflink(name);
+            card.ifindex = if_nametoindex(name.data());
             card.is_down = get_network_card_state(name, ec) == card_state::down ? true : false;
             card.is_physics = (virtual_cards.find(name) == virtual_cards.end());
             card.real_name = name;
@@ -445,14 +544,14 @@ inline network_card_t get_network_card(std::error_code& ec) {
             inet_ntop(AF_INET, &sin->sin_addr, address_ip, INET_ADDRSTRLEN);
             if (strncmp("169.254", address_ip, 7) != 0) { //filter Link-local address
                 it->second.ipv4.emplace(address_ip);
-            }        
+            }
         }
         else if (ifa->ifa_addr->sa_family == AF_INET6) {
             char address_ip[INET6_ADDRSTRLEN]{};
             auto sin6 = (struct sockaddr_in6*)ifa->ifa_addr;
             inet_ntop(AF_INET6, &sin6->sin6_addr, address_ip, INET6_ADDRSTRLEN);
             if (strncmp("fe80", address_ip, 4) != 0) { //filter Link-local address
-               it->second.ipv6.emplace(address_ip);
+                it->second.ipv6.emplace(address_ip);
             }
         }
     }
@@ -461,12 +560,12 @@ inline network_card_t get_network_card(std::error_code& ec) {
     std::error_code ig;
     auto ips = get_container_ip(ec);
     for (auto& [name, info] : cards) {
-        if (auto it = ips.find(info.iflink);
-            it != ips.end() && info.ipv4.empty() && info.ipv6.empty()) {//this is a container card
-            auto &&[ipv4, ipv6] = it->second;
+        if (auto it = ips.find(info.ifindex);
+            it != ips.end() && info.ipv4.empty() && info.ipv6.empty()) { //this is a container card
+            auto&& [ipv4, ipv6] = it->second;
             info.ipv4 = std::move(std::move(ipv4));
             info.ipv6 = std::move(std::move(ipv6));
-        }    
+        }
     }
     return cards;
 }
@@ -508,7 +607,7 @@ inline card_flow get_network_card_flow(C&& c, std::error_code& ec)
 
         auto it = c.find(name);
         if (it != c.end()) {
-            flow.emplace(std::move(name), std::pair{ receive_bytes ,transmit_bytes });
+            flow.emplace(std::move(name), std::pair{ receive_bytes, transmit_bytes });
         }
         memset(buf, 0, sizeof(buf));
         memset(interface, 0, sizeof(interface));
