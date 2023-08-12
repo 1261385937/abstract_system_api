@@ -398,25 +398,29 @@ inline auto get_veth_peer_card_iflink() {
         }
 
         while (NLMSG_OK(nlmsg_ptr, msg_len)) {
-            if (nlmsg_ptr->nlmsg_type == RTM_NEWLINK) {
-                auto ifi_ptr = (struct ifinfomsg*)NLMSG_DATA(nlmsg_ptr);
-                auto attr_ptr = IFLA_RTA(ifi_ptr);
-                auto attr_len = nlmsg_ptr->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi_ptr));
-               
-                std::string ifname;
-                uint32_t iflink = 0;
-                while (RTA_OK(attr_ptr, attr_len)) {             
-                    if (attr_ptr->rta_type == IFLA_IFNAME) {
-                        ifname = (char*)RTA_DATA(attr_ptr);          
-                    }
-                    if (attr_ptr->rta_type == IFLA_LINK) {
-                        iflink = *((uint32_t*)RTA_DATA(attr_ptr));
-                    }
-                    attr_ptr = RTA_NEXT(attr_ptr, attr_len);                   
+            if (nlmsg_ptr->nlmsg_type != RTM_NEWLINK) {
+                nlmsg_ptr = NLMSG_NEXT(nlmsg_ptr, msg_len);
+                continue;
+            }
+
+            auto ifi_ptr = (struct ifinfomsg*)NLMSG_DATA(nlmsg_ptr);
+            auto attr_ptr = IFLA_RTA(ifi_ptr);
+            auto attr_len = nlmsg_ptr->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi_ptr));
+
+            std::string ifname;
+            uint32_t iflink = 0;
+            while (RTA_OK(attr_ptr, attr_len)) {
+                if (attr_ptr->rta_type == IFLA_IFNAME) {
+                    ifname = (char*)RTA_DATA(attr_ptr);
                 }
-                if (iflink != 0) {
-                    iflinks.emplace(std::move(ifname), iflink);
+                if (attr_ptr->rta_type == IFLA_LINK) {
+                    iflink = *((uint32_t*)RTA_DATA(attr_ptr));
                 }
+                attr_ptr = RTA_NEXT(attr_ptr, attr_len);
+            }
+
+            if (iflink != 0) {
+                iflinks.emplace(std::move(ifname), iflink);
             }
             nlmsg_ptr = NLMSG_NEXT(nlmsg_ptr, msg_len);
         }
