@@ -34,6 +34,10 @@
 inline auto setns(int fd, int nstype) {
     return syscall(SYS_setns, fd, nstype);
 }
+#else
+inline int setns(int, int) {
+    return -1;
+}
 #endif
 #endif
 
