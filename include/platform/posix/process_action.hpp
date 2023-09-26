@@ -8,6 +8,8 @@
 #include <sys/types.h> 
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/prctl.h>
+#include <signal.h>
 
 namespace asa {
 namespace posix {
@@ -24,7 +26,7 @@ inline constexpr void for_each_tuple(F&& f, std::index_sequence<Index...>) {
     (std::forward<F>(f)(std::integral_constant<std::size_t, Index>()), ...);
 }
 
-template<typename ...Args>
+template<bool parent_death_sig = false, typename ...Args>
 inline child_handle start_process(std::string_view execute, Args&&... args) {
     const char* cmd_lines[] = { std::forward<Args>(args)..., nullptr };
 
@@ -36,6 +38,9 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
     else if (pid == 0) {
         char** env = environ;
         execve(execute.data(), const_cast<char**>(cmd_lines), env);
+        if constexpr (parent_death_sig) {
+            prctl(PR_SET_PDEATHSIG, SIGKILL);
+        }
         _exit(EXIT_FAILURE);
     }
 
