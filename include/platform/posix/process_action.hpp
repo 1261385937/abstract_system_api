@@ -36,11 +36,12 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
             std::error_code(errno, std::system_category()), "vfork failed");
     }
     else if (pid == 0) {
-        char** env = environ;
-        execve(execute.data(), const_cast<char**>(cmd_lines), env);
         if constexpr (parent_death_sig) {
             prctl(PR_SET_PDEATHSIG, SIGKILL);
         }
+
+        char** env = environ;
+        execve(execute.data(), const_cast<char**>(cmd_lines), env);
         _exit(EXIT_FAILURE);
     }
 
