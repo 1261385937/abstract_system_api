@@ -14,7 +14,7 @@ inline constexpr void for_each_tuple(F&& f, std::index_sequence<Index...>) {
 	(std::forward<F>(f)(std::integral_constant<std::size_t, Index>()), ...);
 }
 
-template<typename ...Args>
+template<bool parent_death_sig = false, typename ...Args>
 inline child_handle start_process(std::string_view execute, Args&&... args) {
 	auto tup = std::make_tuple(std::forward<Args>(args)...);
 	constexpr auto tup_size = std::tuple_size_v<decltype(tup)>;
@@ -37,6 +37,25 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
 		throw std::system_error(
 			std::error_code(GetLastError(), std::system_category()), "CreateProcess failed");
 	}
+
+	if constexpr (parent_death_sig) {
+		auto job_handle = CreateJobObjectA(nullptr, nullptr);
+		auto add_job_ok = AssignProcessToJobObject(job_handle, proc_info.hProcess);
+		if (!add_job_ok) {
+			throw std::system_error(
+				std::error_code(GetLastError(), std::system_category()), "AssignProcessToJobObject failed");
+		}
+
+		JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info{};
+		limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+		auto auto_kill_ok = SetInformationJobObject(
+			job_handle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
+		if (!auto_kill_ok) {
+			throw std::system_error(
+				std::error_code(GetLastError(), std::system_category()), "SetInformationJobObject failed");
+		}
+	}
+	
 	return child_handle(proc_info);
 };
 
@@ -71,6 +90,24 @@ inline bool is_running(const child_handle& p, int& exit_code, std::error_code& e
 		exit_code = code;
 		return false;
 	}
+}
+
+inline void wait(child_handle& p, int& exit_code, std::error_code& ec) {
+	DWORD code = 1;
+
+	if (WaitForSingleObject(p.process_handle(), INFINITE) == WAIT_FAILED) {
+		ec = std::error_code(GetLastError(), std::system_category());
+	}
+	else if (!GetExitCodeProcess(p.process_handle(), &code)) {
+		ec = std::error_code(GetLastError(), std::system_category());
+	}
+	else {
+		ec.clear();
+	}
+
+	CloseHandle(p.proc_info.hProcess);
+	p.proc_info.hProcess = INVALID_HANDLE_VALUE;
+	exit_code = static_cast<int>(code);
 }
 
 }

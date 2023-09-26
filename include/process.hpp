@@ -21,6 +21,8 @@ namespace api = posix;
 #endif
 
 namespace asa {
+
+template<bool parent_death_sig = false>
 class child {
 public:
 	using child_handle = api::child_handle;
@@ -66,7 +68,7 @@ public:
 
 	template<typename ...Args>
 	explicit child(std::string_view execute, Args&&...args) {
-		handle_ = api::start_process(execute, std::forward<Args>(args)...);
+		handle_ = api::start_process<parent_death_sig>(execute, std::forward<Args>(args)...);
 	}
 
 	void detach() { attached_ = false; }
@@ -106,6 +108,18 @@ public:
 		}
 		if (!ec) {
 			terminated_ = true;
+		}
+	}
+
+	void wait(std::error_code& ec) noexcept {
+		if (exited() || !valid()) {
+			return;
+		}
+
+		int exit_code = 0;
+		api::wait(handle_, exit_code, ec);
+		if (!ec) {
+			exit_status_.store(exit_code);
 		}
 	}
 

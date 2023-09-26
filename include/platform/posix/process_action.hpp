@@ -82,5 +82,23 @@ inline bool is_running(const child_handle& p, int& exit_code, std::error_code& e
     return false;
 }
 
+inline void wait(child_handle& p, int& exit_code, std::error_code& ec) {
+    pid_t ret = 0;
+    int status = 0;
+
+    do {
+        ret = waitpid(p.pid, &status, 0);
+    } while (((ret == -1) && (errno == EINTR)) || 
+        (ret != -1 && !WIFEXITED(status) && !WIFSIGNALED(status)));
+
+    if (ret == -1) {
+        ec = std::error_code(errno, std::system_category());
+    }
+    else {
+        ec.clear();
+        exit_code = status;
+    }
+}
+
 }
 }
