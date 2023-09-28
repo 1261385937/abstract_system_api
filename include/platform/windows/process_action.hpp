@@ -39,19 +39,23 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
 	}
 
 	if constexpr (parent_death_sig) {
-		auto job_handle = CreateJobObjectA(nullptr, nullptr);
-		auto add_job_ok = AssignProcessToJobObject(job_handle, proc_info.hProcess);
+		auto job = CreateJobObjectA(nullptr, nullptr);
+		if (job == nullptr) {
+			throw std::system_error(
+			std::error_code(GetLastError(), std::system_category()), "CreateJobObjectA failed");
+		}
+		auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
+
+		auto add_job_ok = AssignProcessToJobObject(job, proc_info.hProcess);
 		if (!add_job_ok) {
 			throw std::system_error(
 				std::error_code(GetLastError(), std::system_category()), "AssignProcessToJobObject failed");
 		}
-		auto closer = std::shared_ptr<char>(
-			new char, [job_handle](char* p) {delete p;  CloseHandle(job_handle); });
 
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info{};
 		limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 		auto auto_kill_ok = SetInformationJobObject(
-			job_handle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
+			job, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
 		if (!auto_kill_ok) {
 			throw std::system_error(
 				std::error_code(GetLastError(), std::system_category()), "SetInformationJobObject failed");
