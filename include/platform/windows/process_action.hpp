@@ -45,6 +45,8 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
 			throw std::system_error(
 				std::error_code(GetLastError(), std::system_category()), "AssignProcessToJobObject failed");
 		}
+		auto closer = std::shared_ptr<char>(
+			new char, [job_handle](char* p) {delete p;  CloseHandle(job_handle); });
 
 		JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info{};
 		limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
