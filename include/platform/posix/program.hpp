@@ -231,9 +231,9 @@ inline void set_cgroup_cpu_limit(std::error_code& ec, float percentage) {
     }
 
     std::string old_cpu_path = "/cgroup/cpu/";
-    exist = std::filesystem::exists(cpu_path, ec);
+    exist = std::filesystem::exists(old_cpu_path, ec);
     if (exist) {
-        set_cgroup_cpu(cpu_path);
+        set_cgroup_cpu(old_cpu_path);
     }
 }
 
