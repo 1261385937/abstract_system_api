@@ -1,26 +1,26 @@
 #pragma once
+#include <cstdio>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <stdio.h>
 #include <memory>
 
 namespace asa {
-namespace posix {
+namespace aix {
 
 struct cpu_occupy {
 	char name[256];
-    uint64_t user;
-    uint64_t nice;
-    uint64_t system;
-    uint64_t idle;
+	uint64_t user;
+	uint64_t nice;
+	uint64_t system;
+	uint64_t idle;
 };
 
 struct memory_info {
 	uint64_t total;
 	uint64_t free;
-    uint64_t buffers;
-    uint64_t cached;
+	uint64_t buffers;
+	uint64_t cached;
 };
 
 struct networkcard {
@@ -49,8 +49,8 @@ using card_flow = std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>
 using card_name = std::unordered_set<std::string>;
 
 struct disk_info {
-    uint64_t total_size;
-    uint64_t available_size;
+	uint64_t total_size;
+	uint64_t available_size;
 };
 
 }

@@ -3,11 +3,12 @@
 
 #if _WIN32
 #include "platform/windows/host_info.hpp"
-
 namespace asa { namespace api = windows; }
+#elif _AIX
+#include "platform/aix/host_info.hpp"
+namespace asa { namespace api = aix; }
 #else
 #include "platform/posix/host_info.hpp"
-
 namespace asa { namespace api = posix; }
 #endif
 

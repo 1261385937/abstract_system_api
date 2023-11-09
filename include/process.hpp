@@ -6,15 +6,16 @@
 #if _WIN32
 #include "platform/windows/process_handle.hpp"
 #include "platform/windows/process_action.hpp"
-
 namespace asa {
 namespace api = windows;
 }
-
+#elif _AIX
+#include "platform/aix/process_handle.hpp"
+#include "platform/aix/process_action.hpp"
+namespace asa { namespace api = aix; }
 #else
 #include "platform/posix/process_handle.hpp"
 #include "platform/posix/process_action.hpp"
-
 namespace asa {
 namespace api = posix;
 }

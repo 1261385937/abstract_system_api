@@ -3,11 +3,12 @@
 
 #if _WIN32
 #include "platform/windows/program.hpp"
-
 namespace asa { namespace api = windows; }
+#elif _AIX
+#include "platform/aix/program.hpp"
+namespace asa { namespace api = aix; }
 #else
 #include "platform/posix/program.hpp"
-
 namespace asa { namespace api = posix; }
 #endif
 
