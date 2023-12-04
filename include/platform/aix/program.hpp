@@ -1,18 +1,22 @@
 #pragma once
-#include <unistd.h>
 #include <sys/sysinfo.h>
 #include <string>
 #include <system_error>
 #include <regex>
 #include <filesystem>
 #include <unistd.h>
+#include <limits.h>
 
 namespace asa {
 namespace aix {
 
 template<size_t UpDepth = 0>
 inline std::string get_executable_path() {
-	std::string current_path = std::filesystem::current_path().string();
+    char current_path[PATH_MAX];
+    if (getcwd(current_path, sizeof(current_path)) == nullptr) {
+        return {};
+    }
+
 	std::string_view path = current_path;
 	if constexpr (UpDepth == 0) {
 		return std::string{ path.data(),path.length() };
@@ -48,7 +52,7 @@ inline double calculate_self_cpu_usage(const self_cpu_occupy&, const self_cpu_oc
 
 inline auto get_self_memory_usage(std::error_code& ec) {
     ec.clear();
-    return std::make_tuple(0.1, 100 * 1024 * 1024, 8 * 1024 * 1024 * 1024);
+    return std::make_tuple(0.1, (uint64_t)(100 * 1024 * 1024), (uint64_t)8 * 1024 * 1024 * 1024);
 }
 
 inline bool is_in_container() {
