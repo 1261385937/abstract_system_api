@@ -1,11 +1,12 @@
 #pragma once
 #include <unistd.h>
 #include <sys/sysinfo.h>
+#include <sys/prctl.h>
+
 #include <string>
 #include <system_error>
 #include <regex>
 #include <filesystem>
-#include <unistd.h>
 
 namespace asa {
 namespace posix {
@@ -288,6 +289,10 @@ inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
     if (exist) {
         set_cgroup_memory(old_memory_path);
     }
+}
+
+inline void set_thread_name(const std::string& name) {
+    prctl(PR_SET_NAME, name.data());
 }
 
 }

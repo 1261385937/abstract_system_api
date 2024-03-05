@@ -10,28 +10,59 @@
 namespace asa {
 namespace aix {
 
+constexpr char executable_name[] = "new_pcap_agent";
+
 template<size_t UpDepth = 0>
 inline std::string get_executable_path() {
-    char current_path[PATH_MAX];
-    if (getcwd(current_path, sizeof(current_path)) == nullptr) {
-        return {};
+    thread_local std::string exe_path;
+    if (!exe_path.empty()) {
+        return exe_path;
     }
 
-	std::string_view path = current_path;
-	if constexpr (UpDepth == 0) {
-		return std::string{ path.data(),path.length() };
-	}
-	else {
-		for (size_t i = 0; i < UpDepth; i++) {
-			path = path.substr(0, path.length() - 1);
-			path = path.substr(0, path.find_last_of(R"(/)") + 1);
-		}
-		return std::string{ path.data(),path.length() };
-	}
+    constexpr char templ[] = R"(ps -ef | grep %s | grep -v grep | awk '{print $8}')";
+    char cmd[128]{};
+    sprintf(cmd, templ, executable_name);
+
+    auto fd = popen(cmd, "r");
+    if (fd == nullptr) {
+        return {};
+    }
+    char buf[1024] = { 0 };
+    fgets(buf, sizeof(buf), fd);
+    pclose(fd);
+
+    std::string_view path;
+    std::string tmp_path;
+    if (strncmp(buf, "./", 2) != 0) { //start with full path
+        path = buf;
+        path = path.substr(0, path.find_last_of(R"(/)") + 1);
+    }
+    else { //Get full path with getcwd when start with ./
+        memset(buf, 0, sizeof(buf));
+        if (getcwd(buf, sizeof(buf)) == nullptr) {
+            return {};
+        }
+        tmp_path = std::string(buf) + "/";
+        path = tmp_path;
+    }
+
+    printf("path_view is %s\n", std::string(path).data());
+
+    if constexpr (UpDepth == 0) {
+        exe_path = std::string{ path.data(),path.length() };
+    }
+    else {
+        for (size_t i = 0; i < UpDepth; i++) {
+            path = path.substr(0, path.length() - 1);
+            path = path.substr(0, path.find_last_of(R"(/)") + 1);
+        }
+        exe_path = std::string{ path.data(),path.length() };
+    }
+    return exe_path; 
 }
 
 inline std::string get_executable_name() {
-	return "new_pcap_agent";
+	return executable_name;
 }
 
 struct self_cpu_occupy {

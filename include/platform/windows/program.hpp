@@ -179,5 +179,28 @@ inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
     }
 }
 
+inline void set_thread_name(const std::string& name) {
+    const DWORD ms_vc_exception = 0x406D1388;
+#pragma pack(push,8)  
+    struct thread_name_info {
+        DWORD type = 0x1000; // Must be 0x1000.  
+        LPCSTR name; // Pointer to name (in user addr space).  
+        DWORD thread_id = GetCurrentThreadId(); // Thread ID (-1=caller thread).  
+        DWORD flags = 0; // Reserved for future use, must be zero.  
+    };
+#pragma pack(pop)
+
+    thread_name_info info{};
+    info.name = name.data();  
+#pragma warning(push)  
+#pragma warning(disable: 6320 6322)  
+    __try {
+        RaiseException(ms_vc_exception, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
+#pragma warning(pop)  
+}
+
+
 }  // namespace windows
 }  // namespace asa

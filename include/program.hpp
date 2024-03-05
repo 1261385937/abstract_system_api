@@ -59,6 +59,10 @@ public:
     void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
         api::set_cgroup_memory_limit(ec, limit_bytes);
     }
+
+    void set_thread_name(const std::string& name) {
+        api::set_thread_name(name);
+    }
 };
 
 }
