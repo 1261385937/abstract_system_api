@@ -26,13 +26,15 @@ inline std::string get_hostname(std::error_code& ec) {
     ec.clear();
 
     DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-    char buf[MAX_COMPUTERNAME_LENGTH + 1]{};
-    auto ret = GetComputerNameA(buf, &size);
+    wchar_t buf[MAX_COMPUTERNAME_LENGTH + 1]{};
+    auto ret = GetComputerNameW(buf, &size);
     if (ret == 0) { //error
         ec = std::error_code(GetLastError(), std::system_category());
         return {};
     }
-    return std::string(buf);
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> cvt;
+    auto name = cvt.to_bytes(buf);
+    return name;
 }
 
 inline std::string get_os_info(std::error_code& ec)
