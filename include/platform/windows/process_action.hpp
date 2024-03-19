@@ -39,12 +39,15 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
 	}
 
 	if constexpr (parent_death_sig) {
-		auto job = CreateJobObjectA(nullptr, nullptr);
+		static HANDLE job = nullptr;
 		if (job == nullptr) {
-			throw std::system_error(
-			std::error_code(GetLastError(), std::system_category()), "CreateJobObjectA failed");
+			job = CreateJobObjectA(nullptr, nullptr);
+			if (job == nullptr) {
+				throw std::system_error(
+					std::error_code(GetLastError(), std::system_category()), "CreateJobObjectA failed");
+			}
+			//auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
 		}
-		auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
 
 		auto add_job_ok = AssignProcessToJobObject(job, proc_info.hProcess);
 		if (!add_job_ok) {
