@@ -27,6 +27,11 @@ public:
         return api::get_executable_path<1>();
     }
 
+    template<size_t UpDepth>
+    auto get_executable_updepth_path() {
+        return api::get_executable_path<UpDepth>();
+    }
+
     auto get_executable_name() { 
         return api::get_executable_name(); 
     }

@@ -3,6 +3,7 @@
 #include <tuple>
 #include <system_error>
 #include <memory>
+#include <thread>
 #include "process_handle.hpp"
 
 #include <sys/types.h> 
@@ -49,6 +50,15 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
 };
 
 inline void terminate_process(child_handle& p, std::error_code& ec) {
+    int status;
+    if (kill(p.pid, SIGTERM) != -1) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        auto ret = waitpid(p.pid, &status, WNOHANG);
+        if (ret > 0) {
+            return;
+        }
+    }
+    
     if (kill(p.pid, SIGKILL) == -1) {
         ec = std::error_code(errno, std::system_category());
     }  
@@ -57,7 +67,6 @@ inline void terminate_process(child_handle& p, std::error_code& ec) {
     }
         
     //should not be WNOHANG, since that would allow zombies.
-    int status;
     waitpid(p.pid, &status, 0); 
 };
 
