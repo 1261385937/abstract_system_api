@@ -68,8 +68,8 @@ public:
 	explicit child(pid_t pid) : handle_(pid), attached_(false) {};
 
 	template<typename ...Args>
-	explicit child(std::string_view execute, Args&&...args) {
-		handle_ = api::start_process<parent_death_sig>(execute, std::forward<Args>(args)...);
+	explicit child(Args&&...args) {
+		handle_ = api::start_process<parent_death_sig>(std::forward<Args>(args)...);
 	}
 
 	void detach() { attached_ = false; }

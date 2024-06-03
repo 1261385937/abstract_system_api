@@ -28,8 +28,28 @@ inline constexpr void for_each_tuple(F&& f, std::index_sequence<Index...>) {
 }
 
 template<bool parent_death_sig = false, typename ...Args>
-inline child_handle start_process(std::string_view execute, Args&&... args) {
-    const char* cmd_lines[] = { std::forward<Args>(args)..., nullptr };
+inline child_handle start_process(Args&&... args) {
+    //const char* cmd_lines[] = { std::forward<Args>(args)..., nullptr };
+    auto tup = std::forward_as_tuple(std::forward<Args>(args)...);
+    constexpr auto tup_size = std::tuple_size_v<decltype(tup)>;
+
+    std::vector<std::string> parameters;
+    parameters.reserve(tup_size);
+    for_each_tuple([&parameters, &tup, &tup_size](auto index) {
+        using type = decltype(std::get<index>(tup));
+        if constexpr (std::is_convertible_v<type, std::string>) {
+            parameters.emplace_back(std::get<index>(tup));
+        }
+        else {
+            parameters.emplace_back(std::to_string(std::get<index>(tup)));
+        }
+    }, std::make_index_sequence<tup_size>());
+
+    std::vector<const char*> argv;
+    for (auto&& parameter : parameters) {
+        argv.push_back(parameter.c_str());
+    }
+    argv.push_back(nullptr);
 
     auto pid = vfork();
     if (pid == -1) {
@@ -42,12 +62,12 @@ inline child_handle start_process(std::string_view execute, Args&&... args) {
         }
 
         char** env = environ;
-        execve(execute.data(), const_cast<char**>(cmd_lines), env);
+        execve(argv[0], const_cast<char* const*>(argv.data()), env);
         _exit(EXIT_FAILURE);
     }
 
     return child_handle(pid);
-};
+}
 
 inline void terminate_process(child_handle& p, std::error_code& ec) {
     int status;
@@ -68,7 +88,7 @@ inline void terminate_process(child_handle& p, std::error_code& ec) {
         
     //should not be WNOHANG, since that would allow zombies.
     waitpid(p.pid, &status, 0); 
-};
+}
 
 inline bool is_running(int code) {
     return !WIFEXITED(code) && !WIFSIGNALED(code);

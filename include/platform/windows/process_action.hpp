@@ -15,23 +15,34 @@ inline constexpr void for_each_tuple(F&& f, std::index_sequence<Index...>) {
 }
 
 template<bool parent_death_sig = false, typename ...Args>
-inline child_handle start_process(std::string_view execute, Args&&... args) {
-	auto tup = std::make_tuple(std::forward<Args>(args)...);
+inline child_handle start_process(Args&&... args) {
+	auto tup = std::forward_as_tuple(std::forward<Args>(args)...);
 	constexpr auto tup_size = std::tuple_size_v<decltype(tup)>;
 
 	std::string cmd_lines;
 	for_each_tuple([&cmd_lines, &tup, &tup_size](auto index) {
-		if constexpr (index == tup_size - 1) {
-			cmd_lines.append(std::get<index>(tup));
+		using type = decltype(std::get<index>(tup));
+		if constexpr (index == tup_size - 1) {			
+			if constexpr (std::is_convertible_v<type, std::string>) {
+				cmd_lines.append(std::get<index>(tup));
+			}
+			else {
+				cmd_lines.append(std::to_string(std::get<index>(tup)));
+			}
 		}
 		else {
-			cmd_lines.append(std::get<index>(tup)).append(" ");
+			if constexpr (std::is_convertible_v<type, std::string>) {
+				cmd_lines.append(std::get<index>(tup)).append(" ");
+			}
+			else {
+				cmd_lines.append(std::to_string(std::get<index>(tup))).append(" ");
+			}
 		}
 	}, std::make_index_sequence<tup_size>());
 
 	STARTUPINFOA startup_info{};
 	PROCESS_INFORMATION proc_info{};
-	auto ok = CreateProcessA(execute.data(), cmd_lines.data(),
+	auto ok = CreateProcessA(nullptr, cmd_lines.data(),
 		nullptr, nullptr, false, 0, nullptr, nullptr, &startup_info, &proc_info);
 	if (!ok) {
 		throw std::system_error(
