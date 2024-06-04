@@ -301,10 +301,16 @@ inline disk_info get_disk_info(std::string_view name, std::error_code& ec) {
     return info;
 }
 
-inline auto get_toute_table(std::error_code& ec) {
+inline auto get_route_table(std::error_code& ec) {
     ec.clear();
     std::vector<std::vector<std::string>> tables;
     return tables;
+}
+
+inline auto tcp_used_port(std::error_code& ec) {
+    ec.clear();
+    std::unordered_set<uint16_t> tcp_ports;
+    return tcp_ports;
 }
 
 }

@@ -243,7 +243,7 @@ inline bool is_physics(const std::string& network_card_name) {
     return true;
 }
 
-inline auto get_toute_table(std::error_code& ec) {
+inline auto get_route_table(std::error_code& ec) {
     ec.clear();
     std::vector<std::vector<std::string>> tables;
     FILE* fp = fopen("/proc/net/route", "r");
@@ -650,6 +650,54 @@ inline disk_info get_disk_info(std::string_view name, std::error_code& ec) {
     info.total_size = block_size * disk_Info.f_blocks; //byte
     info.available_size = disk_Info.f_bavail * block_size;//byte
     return info;
+}
+
+inline auto tcp_used_port(std::error_code& ec) {
+    ec.clear();
+    std::unordered_set<uint16_t> tcp_ports;
+
+    auto parse_port = [](std::string_view buf_view, std::unordered_set<uint16_t>& ports) {
+        auto pos = buf_view.find(':');
+        if (pos == std::string_view::npos) {
+            return;
+        }
+        buf_view = buf_view.substr(pos + 1);
+        pos = buf_view.find(':');
+        if (pos == std::string_view::npos) {
+            return;
+        }
+
+        auto port_str = std::string(buf_view.substr(pos + 1, 4));
+        char* end_ptr = nullptr;
+        auto port = static_cast<uint16_t>(std::strtoull(port_str.data(), &end_ptr, 16));
+        if (end_ptr != port_str.data()) {
+            ports.emplace(port);
+        }
+    };
+    
+    FILE* fp = fopen("/proc/net/tcp", "r");
+    if (fp == nullptr) {
+        ec = std::error_code(errno, std::system_category());
+        return tcp_ports;
+    }
+    char buf[1024]{};
+    while (fgets(buf, sizeof(buf), fp)) {
+        std::string_view buf_view = buf;
+        parse_port(buf_view, tcp_ports);
+    }
+    fclose(fp);
+
+    auto fp6 = fopen("/proc/net/tcp6", "r");
+    if (fp6 == nullptr) {
+        ec = std::error_code(errno, std::system_category());
+        return tcp_ports;
+    }
+    while (fgets(buf, sizeof(buf), fp6)) {
+        std::string_view buf_view = buf;
+        parse_port(buf_view, tcp_ports);
+    }
+    fclose(fp6);
+    return tcp_ports;
 }
 
 

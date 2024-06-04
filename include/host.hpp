@@ -86,8 +86,12 @@ public:
         return api::get_disk_info(name, ec);
     }
 
-    auto get_toute_table(std::error_code& ec) {
-        return api::get_toute_table(ec);
+    auto get_route_table(std::error_code& ec) {
+        return api::get_route_table(ec);
+    }
+
+    auto get_tcp_used_port(std::error_code& ec) {
+        return api::tcp_used_port(ec);
     }
 };
 
