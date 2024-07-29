@@ -700,7 +700,16 @@ inline auto tcp_used_port(std::error_code& ec) {
     return tcp_ports;
 }
 
+inline auto get_environment_variable(std::string_view key, std::error_code& ec) {
+    ec.clear();
 
+    char* path = getenv(key.data());
+    if (path == nullptr) {
+        ec = std::error_code(errno, std::system_category());
+        return std::string{};
+    }
+    return std::string{ path };
+}
 
 }
 }

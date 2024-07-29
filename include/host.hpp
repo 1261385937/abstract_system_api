@@ -93,6 +93,10 @@ public:
     auto get_tcp_used_port(std::error_code& ec) {
         return api::tcp_used_port(ec);
     }
+
+    auto get_env(std::string_view name, std::error_code& ec) {
+        return api::get_environment_variable(name, ec);
+    }
 };
 
 }
