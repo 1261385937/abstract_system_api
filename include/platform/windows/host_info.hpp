@@ -313,5 +313,17 @@ inline auto tcp_used_port(std::error_code& ec) {
     return tcp_ports;
 }
 
+inline auto get_environment_variable(std::string_view key, std::error_code& ec) {
+    ec.clear();
+
+    char value[MAX_PATH]{};
+    auto ret = GetEnvironmentVariableA(key.data(), value, MAX_PATH);
+    if (ret == 0) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return std::string{};
+    }
+    return std::string{ value };
+}
+
 }
 }
