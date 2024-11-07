@@ -295,5 +295,14 @@ inline void set_thread_name(const std::string& name) {
     prctl(PR_SET_NAME, name.data());
 }
 
+using identifier = int;
+inline void lock_file(std::error_code&, const std::string&) {
+    //empty
+}
+
+inline void unlock_file(std::error_code&, const std::string&) {
+    //empty
+}
+
 }
 }

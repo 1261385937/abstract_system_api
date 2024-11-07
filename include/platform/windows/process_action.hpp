@@ -57,7 +57,7 @@ inline child_handle start_process(Args&&... args) {
 				throw std::system_error(
 					std::error_code(GetLastError(), std::system_category()), "CreateJobObjectA failed");
 			}
-			//auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
+			//auto closer = std::shared_ptr<void>(nullptr, [job](auto) { CloseHandle(job); });
 		}
 
 		auto add_job_ok = AssignProcessToJobObject(job, proc_info.hProcess);

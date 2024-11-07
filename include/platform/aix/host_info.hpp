@@ -77,7 +77,7 @@ inline network_card_t get_network_card(std::error_code& ec) {
         ec = std::error_code(errno, std::system_category());
         return {};
     }
-    auto closer = std::shared_ptr<char>(new char, [sock](char* p) {delete p;  close(sock); });
+    auto closer = std::shared_ptr<void>(nullptr, [sock](auto) { close(sock); });
 
     ifconf ifc{};
     char buf[2048]{};

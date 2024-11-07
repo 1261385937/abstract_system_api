@@ -386,7 +386,7 @@ inline auto get_veth_peer_card_iflink() {
     if (fd < 0) {
         return iflinks;
     }
-    auto closer = std::shared_ptr<char>(new char, [fd](char* p) {delete p; close(fd); });
+    auto closer = std::shared_ptr<void>(nullptr, [fd](auto) { close(fd); });
 
     auto ok = bind(fd, (struct sockaddr*)&local, sizeof(local));
     if (ok < 0) {
@@ -505,7 +505,7 @@ inline auto get_container_ip(std::error_code& ec) {
                     ec = std::error_code(errno, std::system_category());
                     continue;
                 }
-                auto closer = std::shared_ptr<char>(new char, [fd](char* p) {delete p; close(fd); });
+                auto closer = std::shared_ptr<void>(nullptr, [fd](auto) { close(fd); });
                 if (setns(fd, 0) == -1) {
                     ec = std::error_code(errno, std::system_category());
                     continue;

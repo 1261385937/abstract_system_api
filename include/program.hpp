@@ -18,6 +18,7 @@ namespace asa {
 class program {
 public:
     using self_cpu_occupy = api::self_cpu_occupy;
+    using identifier = api::identifier;
 public:
     auto get_executable_path() {
         return api::get_executable_path();
@@ -67,6 +68,14 @@ public:
 
     void set_thread_name(const std::string& name) {
         api::set_thread_name(name);
+    }
+
+    identifier lock_file(std::error_code& ec, const std::string& file_path) {
+        return api::lock_file(ec, file_path);
+    }
+
+    void unlock_file(std::error_code& ec, identifier ident) {
+        api::unlock_file(ec, ident);
     }
 };
 

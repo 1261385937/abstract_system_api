@@ -136,7 +136,7 @@ inline void set_cgroup_cpu_limit(std::error_code& ec, float percentage) {
         ec = std::error_code(GetLastError(), std::system_category());
         return;
     }
-    auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
+    auto closer = std::shared_ptr<void>(nullptr, [job](auto) {CloseHandle(job); });
 
     JOBOBJECT_CPU_RATE_CONTROL_INFORMATION cpu_limit{};
     cpu_limit.ControlFlags = 
@@ -162,7 +162,7 @@ inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
         ec = std::error_code(GetLastError(), std::system_category());
         return;
     }
-    auto closer = std::shared_ptr<char>(new char, [job](char* p) {delete p;  CloseHandle(job); });
+    auto closer = std::shared_ptr<void>(nullptr, [job](auto) {CloseHandle(job); });
 
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION mem_limit{};
     mem_limit.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_JOB_MEMORY;
@@ -181,7 +181,7 @@ inline void set_cgroup_memory_limit(std::error_code& ec, uint64_t limit_bytes) {
 
 inline void set_thread_name(const std::string& name) {
     const DWORD ms_vc_exception = 0x406D1388;
-#pragma pack(push,8)  
+#pragma pack(push,8)
     struct thread_name_info {
         DWORD type = 0x1000; // Must be 0x1000.  
         LPCSTR name; // Pointer to name (in user addr space).  
@@ -192,14 +192,45 @@ inline void set_thread_name(const std::string& name) {
 
     thread_name_info info{};
     info.name = name.data();  
-#pragma warning(push)  
-#pragma warning(disable: 6320 6322)  
+#pragma warning(push)
+#pragma warning(disable: 6320 6322)
     __try {
         RaiseException(ms_vc_exception, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {}
 #pragma warning(pop)  
 }
+
+using identifier = HANDLE;
+inline identifier lock_file(std::error_code& ec, const std::string& file_path) {
+    ec.clear();
+
+    auto handle = CreateFileA(file_path.c_str(), GENERIC_READ | GENERIC_WRITE,
+        0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        return INVALID_HANDLE_VALUE;
+    }
+
+    OVERLAPPED overlapped = { 0 };
+    if (!LockFileEx(handle, LOCKFILE_EXCLUSIVE_LOCK, 0, 0xFFFFFFFF, 0xFFFFFFFF, &overlapped)) {
+        ec = std::error_code(GetLastError(), std::system_category());
+        CloseHandle(handle);
+        return INVALID_HANDLE_VALUE;
+    }
+    return handle;
+}
+
+inline void unlock_file(std::error_code& ec, identifier ident) {
+    ec.clear();
+
+    OVERLAPPED overlapped = { 0 };
+    if (!UnlockFileEx(ident, 0, 0xFFFFFFFF, 0xFFFFFFFF, &overlapped)) {
+        ec = std::error_code(GetLastError(), std::system_category());
+    }
+    CloseHandle(ident);
+}
+
 
 
 }  // namespace windows
