@@ -296,11 +296,12 @@ inline void set_thread_name(const std::string& name) {
 }
 
 using identifier = int;
-inline void lock_file(std::error_code&, const std::string&) {
+inline identifier lock_file(std::error_code&, const std::string&) {
     //empty
+    return {};
 }
 
-inline void unlock_file(std::error_code&, const std::string&) {
+inline void unlock_file(std::error_code&, identifier) {
     //empty
 }
 
